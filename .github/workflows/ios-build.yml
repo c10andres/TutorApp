@@ -22,22 +22,26 @@ jobs:
     - name: Setup Node.js 20
       uses: actions/setup-node@v4
       with:
-        node-version: '20.x'
+        node-version: '20'
         cache: 'npm'
     
     - name: Verificar versión de Node.js (>=20.0.0 requerido)
       run: |
-        NODE_VERSION=$(node --version | sed 's/v//')
-        NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
-        echo "Node.js version: $NODE_VERSION"
+        echo "=== Verificando versión de Node.js ==="
+        NODE_VERSION=$(node --version)
+        NODE_VERSION_NUM=$(echo $NODE_VERSION | sed 's/v//')
+        NODE_MAJOR=$(echo $NODE_VERSION_NUM | cut -d. -f1)
+        
+        echo "Node.js version: $NODE_VERSION ($NODE_VERSION_NUM)"
         echo "npm version: $(npm --version)"
+        echo "Node.js major version: $NODE_MAJOR"
         
         if [ "$NODE_MAJOR" -lt 20 ]; then
-          echo "❌ ERROR: Node.js $NODE_VERSION es menor que 20.0.0"
+          echo "❌ ERROR: Node.js $NODE_VERSION_NUM es menor que 20.0.0"
           echo "Capacitor CLI requiere Node.js >=20.0.0"
           exit 1
         fi
-        echo "✅ Node.js $NODE_VERSION cumple el requisito >=20.0.0"
+        echo "✅ Node.js $NODE_VERSION_NUM cumple el requisito >=20.0.0"
     
     - name: Limpiar caché de npm (si es necesario)
       run: |
@@ -84,17 +88,51 @@ jobs:
     
     - name: Listar simuladores disponibles
       run: |
-        xcrun simctl list devices available
+        echo "=== Simuladores disponibles ==="
+        xcrun simctl list devices available | grep "iPhone"
+    
+    - name: Detectar simulador disponible
+      id: simulator
+      run: |
+        echo "=== Detectando simulador disponible ==="
+        DEVICE_LIST=$(xcrun simctl list devices available)
+        echo "$DEVICE_LIST"
+        
+        # Priorizar iPhone SE (3rd generation) que está disponible en GitHub Actions
+        if echo "$DEVICE_LIST" | grep -q "iPhone SE (3rd generation)"; then
+          SIMULATOR_NAME="iPhone SE (3rd generation)"
+          echo "✅ Usando: $SIMULATOR_NAME"
+        elif echo "$DEVICE_LIST" | grep -q "iPhone SE"; then
+          SIMULATOR_NAME=$(echo "$DEVICE_LIST" | grep "iPhone SE" | grep "available" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
+          echo "✅ Usando: $SIMULATOR_NAME"
+        else
+          # Fallback: cualquier iPhone disponible
+          SIMULATOR_NAME=$(echo "$DEVICE_LIST" | grep "iPhone" | grep "available" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
+          echo "✅ Usando: $SIMULATOR_NAME"
+        fi
+        
+        if [ -z "$SIMULATOR_NAME" ]; then
+          echo "❌ No se encontró simulador disponible"
+          exit 1
+        fi
+        
+        echo "simulator_name=$SIMULATOR_NAME" >> $GITHUB_OUTPUT
     
     - name: Build iOS para Simulador (Sin certificados)
       run: |
         cd ios/App
+        
+        SIMULATOR_NAME="${{ steps.simulator.outputs.simulator_name }}"
+        
+        echo "=== Construyendo para simulador: $SIMULATOR_NAME ==="
+        
         # Build para simulador - NO requiere certificados
+        # Usar iPhone SE (3rd generation) que está disponible
         xcodebuild -workspace App.xcworkspace \
                    -scheme App \
                    -configuration Debug \
                    -sdk iphonesimulator \
-                   -destination 'platform=iOS Simulator,name=iPhone 14 Pro' \
+                   -destination "platform=iOS Simulator,name=$SIMULATOR_NAME,OS=latest" \
                    CODE_SIGN_IDENTITY="" \
                    CODE_SIGNING_REQUIRED=NO \
                    CODE_SIGNING_ALLOWED=NO \
