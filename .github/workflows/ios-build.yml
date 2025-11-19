@@ -97,25 +97,27 @@ jobs:
           echo "=== Simuladores disponibles ==="
           xcrun simctl list devices available | grep "iPhone" || true
 
-      - name: Build para iOS Simulator (sin code signing)
+      - name: Detectar simulador disponible
+        id: simulator
         run: |
-          # Ajusta estas rutas/nombres según tu proyecto
-          WORKSPACE="ios/App/App.xcworkspace"
-          SCHEME="App"
-          
-          # Preferencia: iPhone 14 Pro, si no existe elige el primer iPhone disponible
-          PREFERRED="iPhone 14 Pro"
+          echo "=== Detectando simulador disponible ==="
           DEVICE_LIST=$(xcrun simctl list devices available)
+          echo "$DEVICE_LIST"
           
-          if echo "$DEVICE_LIST" | grep -q "$PREFERRED"; then
-            DEST_NAME="$PREFERRED"
+          # Prioridad 1: iPhone SE (3rd generation) - disponible en GitHub Actions
+          if echo "$DEVICE_LIST" | grep -q "iPhone SE (3rd generation)"; then
+            DEST_NAME="iPhone SE (3rd generation)"
             echo "✅ Usando simulador preferido: $DEST_NAME"
+          # Prioridad 2: Cualquier iPhone SE
+          elif echo "$DEVICE_LIST" | grep -q "iPhone SE"; then
+            DEST_NAME=$(echo "$DEVICE_LIST" | grep "iPhone SE" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
+            echo "✅ Usando: $DEST_NAME"
+          # Prioridad 3: Cualquier iPhone disponible
           else
-            # Fallback: buscar cualquier iPhone disponible
-            DEST_NAME=$(echo "$DEVICE_LIST" | grep -Eo 'iPhone [^()]+' | head -n1 | sed 's/ *$//' || echo "")
+            DEST_NAME=$(echo "$DEVICE_LIST" | grep "iPhone" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
             if [ -z "$DEST_NAME" ]; then
-              # Segundo fallback: buscar con "available" explícito
-              DEST_NAME=$(echo "$DEVICE_LIST" | grep "iPhone" | grep "available" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs || echo "")
+              # Último intento: extraer cualquier iPhone de la lista
+              DEST_NAME=$(echo "$DEVICE_LIST" | grep -Eo 'iPhone [^()]+' | head -n1 | sed 's/ *$//' || echo "")
             fi
             echo "✅ Usando simulador disponible: $DEST_NAME"
           fi
@@ -127,7 +129,23 @@ jobs:
             exit 1
           fi
           
-          DEST="platform=iOS Simulator,OS=latest,name=$DEST_NAME"
+          echo "simulator_name=$DEST_NAME" >> $GITHUB_OUTPUT
+          echo "✅ Simulador seleccionado: $DEST_NAME"
+
+      - name: Build para iOS Simulator (sin code signing)
+        run: |
+          # Ajusta estas rutas/nombres según tu proyecto
+          WORKSPACE="ios/App/App.xcworkspace"
+          SCHEME="App"
+          
+          SIMULATOR_NAME="${{ steps.simulator.outputs.simulator_name }}"
+          
+          if [ -z "$SIMULATOR_NAME" ]; then
+            echo "❌ No se pudo determinar el simulador"
+            exit 1
+          fi
+          
+          DEST="platform=iOS Simulator,OS=latest,name=$SIMULATOR_NAME"
           echo "=== Construyendo para simulador: $DEST ==="
           
           cd ios/App || cd ios || exit 1
