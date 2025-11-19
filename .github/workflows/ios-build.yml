@@ -91,24 +91,25 @@ jobs:
         echo "=== Simuladores disponibles ==="
         xcrun simctl list devices available | grep "iPhone"
     
-    - name: Detectar simulador disponible
+    - name: Detectar simulador y versión iOS disponible
       id: simulator
       run: |
         echo "=== Detectando simulador disponible ==="
         DEVICE_LIST=$(xcrun simctl list devices available)
         echo "$DEVICE_LIST"
         
-        # Priorizar iPhone SE (3rd generation) que está disponible en GitHub Actions
+        # Buscar iPhone SE (3rd generation) con versión iOS disponible
         if echo "$DEVICE_LIST" | grep -q "iPhone SE (3rd generation)"; then
           SIMULATOR_NAME="iPhone SE (3rd generation)"
-          echo "✅ Usando: $SIMULATOR_NAME"
-        elif echo "$DEVICE_LIST" | grep -q "iPhone SE"; then
-          SIMULATOR_NAME=$(echo "$DEVICE_LIST" | grep "iPhone SE" | grep "available" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
-          echo "✅ Usando: $SIMULATOR_NAME"
+          # Extraer versión iOS disponible para este simulador
+          IOS_VERSION=$(echo "$DEVICE_LIST" | grep "iPhone SE (3rd generation)" | grep -oE "OS=[0-9.]+" | head -1 | cut -d= -f2 || echo "latest")
+          echo "✅ Usando: $SIMULATOR_NAME con iOS $IOS_VERSION"
         else
-          # Fallback: cualquier iPhone disponible
-          SIMULATOR_NAME=$(echo "$DEVICE_LIST" | grep "iPhone" | grep "available" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
-          echo "✅ Usando: $SIMULATOR_NAME"
+          # Fallback: buscar cualquier iPhone disponible
+          SIMULATOR_LINE=$(echo "$DEVICE_LIST" | grep "iPhone" | grep "available" | head -1)
+          SIMULATOR_NAME=$(echo "$SIMULATOR_LINE" | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
+          IOS_VERSION=$(echo "$SIMULATOR_LINE" | grep -oE "OS=[0-9.]+" | head -1 | cut -d= -f2 || echo "latest")
+          echo "✅ Usando: $SIMULATOR_NAME con iOS $IOS_VERSION"
         fi
         
         if [ -z "$SIMULATOR_NAME" ]; then
@@ -117,22 +118,23 @@ jobs:
         fi
         
         echo "simulator_name=$SIMULATOR_NAME" >> $GITHUB_OUTPUT
+        echo "ios_version=$IOS_VERSION" >> $GITHUB_OUTPUT
     
     - name: Build iOS para Simulador (Sin certificados)
       run: |
         cd ios/App
         
         SIMULATOR_NAME="${{ steps.simulator.outputs.simulator_name }}"
+        IOS_VERSION="${{ steps.simulator.outputs.ios_version }}"
         
-        echo "=== Construyendo para simulador: $SIMULATOR_NAME ==="
+        echo "=== Construyendo para simulador: $SIMULATOR_NAME (iOS $IOS_VERSION) ==="
         
         # Build para simulador - NO requiere certificados
-        # Usar iPhone SE (3rd generation) que está disponible
         xcodebuild -workspace App.xcworkspace \
                    -scheme App \
                    -configuration Debug \
                    -sdk iphonesimulator \
-                   -destination "platform=iOS Simulator,name=$SIMULATOR_NAME,OS=latest" \
+                   -destination "platform=iOS Simulator,name=$SIMULATOR_NAME,OS=$IOS_VERSION" \
                    CODE_SIGN_IDENTITY="" \
                    CODE_SIGNING_REQUIRED=NO \
                    CODE_SIGNING_ALLOWED=NO \
