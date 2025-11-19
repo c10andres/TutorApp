@@ -92,69 +92,20 @@ jobs:
           pod install --repo-update || true
           cd ..
 
-      - name: Listar simuladores disponibles (debug)
-        run: |
-          echo "=== Simuladores disponibles ==="
-          xcrun simctl list devices available | grep "iPhone" || true
-
-      - name: Detectar simulador disponible
-        id: simulator
-        run: |
-          echo "=== Detectando simulador disponible ==="
-          DEVICE_LIST=$(xcrun simctl list devices available)
-          echo "$DEVICE_LIST"
-          
-          # Prioridad 1: iPhone SE (3rd generation) - disponible en GitHub Actions
-          if echo "$DEVICE_LIST" | grep -q "iPhone SE (3rd generation)"; then
-            DEST_NAME="iPhone SE (3rd generation)"
-            echo "✅ Usando simulador preferido: $DEST_NAME"
-          # Prioridad 2: Cualquier iPhone SE
-          elif echo "$DEVICE_LIST" | grep -q "iPhone SE"; then
-            DEST_NAME=$(echo "$DEVICE_LIST" | grep "iPhone SE" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
-            echo "✅ Usando: $DEST_NAME"
-          # Prioridad 3: Cualquier iPhone disponible
-          else
-            DEST_NAME=$(echo "$DEVICE_LIST" | grep "iPhone" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
-            if [ -z "$DEST_NAME" ]; then
-              # Último intento: extraer cualquier iPhone de la lista
-              DEST_NAME=$(echo "$DEVICE_LIST" | grep -Eo 'iPhone [^()]+' | head -n1 | sed 's/ *$//' || echo "")
-            fi
-            echo "✅ Usando simulador disponible: $DEST_NAME"
-          fi
-          
-          if [ -z "$DEST_NAME" ]; then
-            echo "❌ No se encontró un simulador iPhone disponible."
-            echo "=== Lista completa de dispositivos ==="
-            xcrun simctl list devices
-            exit 1
-          fi
-          
-          echo "simulator_name=$DEST_NAME" >> $GITHUB_OUTPUT
-          echo "✅ Simulador seleccionado: $DEST_NAME"
+      - name: Listar simuladores disponibles
+        run: xcrun simctl list devices available
 
       - name: Build para iOS Simulator (sin code signing)
         run: |
-          # Ajusta estas rutas/nombres según tu proyecto
-          WORKSPACE="ios/App/App.xcworkspace"
-          SCHEME="App"
-          
-          SIMULATOR_NAME="${{ steps.simulator.outputs.simulator_name }}"
-          
-          if [ -z "$SIMULATOR_NAME" ]; then
-            echo "❌ No se pudo determinar el simulador"
-            exit 1
-          fi
-          
-          DEST="platform=iOS Simulator,OS=latest,name=$SIMULATOR_NAME"
-          echo "=== Construyendo para simulador: $DEST ==="
-          
           cd ios/App || cd ios || exit 1
           
-          xcodebuild -workspace "$WORKSPACE" \
-                     -scheme "$SCHEME" \
+          echo "=== Construyendo para iPhone SE (3rd generation) ==="
+          
+          xcodebuild -workspace App.xcworkspace \
+                     -scheme App \
                      -sdk iphonesimulator \
                      -configuration Debug \
-                     -destination "$DEST" \
+                     -destination "platform=iOS Simulator,name=iPhone SE (3rd generation),OS=latest" \
                      clean build \
                      CODE_SIGNING_ALLOWED=NO \
                      CODE_SIGNING_REQUIRED=NO \
