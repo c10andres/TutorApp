@@ -2,180 +2,179 @@
 # GRATIS si tu repo es público en GitHub
 # NO requiere certificados - Solo para desarrollo/pruebas
 
-name: Build iOS App
+name: Build iOS App (Simulator, no signing)
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
-  workflow_dispatch: # Permite ejecutar manualmente
 
 jobs:
-  build-ios:
-    runs-on: macos-latest # Mac GRATIS en la nube
-    
+  ios-sim-build:
+    runs-on: macos-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+
     steps:
-    - name: Checkout código
-      uses: actions/checkout@v4
-    
-    - name: Setup Node.js 20
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-    
-    - name: Verificar versión de Node.js (>=20.0.0 requerido)
-      run: |
-        echo "=== Verificando versión de Node.js ==="
-        NODE_VERSION=$(node --version)
-        NODE_VERSION_NUM=$(echo $NODE_VERSION | sed 's/v//')
-        NODE_MAJOR=$(echo $NODE_VERSION_NUM | cut -d. -f1)
-        
-        echo "Node.js version: $NODE_VERSION ($NODE_VERSION_NUM)"
-        echo "npm version: $(npm --version)"
-        echo "Node.js major version: $NODE_MAJOR"
-        
-        if [ "$NODE_MAJOR" -lt 20 ]; then
-          echo "❌ ERROR: Node.js $NODE_VERSION_NUM es menor que 20.0.0"
-          echo "Capacitor CLI requiere Node.js >=20.0.0"
-          exit 1
-        fi
-        echo "✅ Node.js $NODE_VERSION_NUM cumple el requisito >=20.0.0"
-    
-    - name: Limpiar caché de npm (si es necesario)
-      run: |
-        npm cache clean --force || true
-        echo "✅ Caché limpiado"
-    
-    - name: Instalar dependencias
-      run: npm ci
-    
-    - name: Instalar Capacitor CLI
-      run: |
-        npm install --no-save @capacitor/cli@latest
-        echo "✅ Capacitor CLI instalado"
-        npx cap --version
-    
-    - name: Instalar Capacitor iOS
-      run: npm install @capacitor/ios
-    
-    - name: Build web app
-      run: npm run build
-    
-    - name: Verificar Node.js y Capacitor antes de ejecutar
-      run: |
-        echo "=== Verificación final antes de Capacitor ==="
-        NODE_VERSION=$(node --version | sed 's/v//')
-        NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
-        echo "Node.js version: $NODE_VERSION"
-        echo "npm version: $(npm --version)"
-        
-        if [ "$NODE_MAJOR" -lt 20 ]; then
-          echo "❌ ERROR: Node.js $NODE_VERSION es menor que 20.0.0"
-          exit 1
-        fi
-        
-        echo "Capacitor CLI version:"
-        npx cap --version || echo "⚠️ Capacitor CLI no encontrado"
-        echo "✅ Todo listo para ejecutar Capacitor"
-    
-    - name: Agregar plataforma iOS
-      run: npx cap add ios
-    
-    - name: Sincronizar iOS
-      run: npx cap sync ios
-    
-    - name: Listar simuladores disponibles
-      run: |
-        echo "=== Simuladores disponibles ==="
-        xcrun simctl list devices available | grep "iPhone"
-    
-    - name: Detectar simulador y versión iOS disponible
-      id: simulator
-      run: |
-        echo "=== Detectando simulador disponible ==="
-        DEVICE_LIST=$(xcrun simctl list devices available)
-        echo "$DEVICE_LIST"
-        
-        # Buscar iPhone SE (3rd generation) con versión iOS disponible
-        if echo "$DEVICE_LIST" | grep -q "iPhone SE (3rd generation)"; then
-          SIMULATOR_NAME="iPhone SE (3rd generation)"
-          # Extraer versión iOS disponible para este simulador
-          IOS_VERSION=$(echo "$DEVICE_LIST" | grep "iPhone SE (3rd generation)" | grep -oE "OS=[0-9.]+" | head -1 | cut -d= -f2 || echo "latest")
-          echo "✅ Usando: $SIMULATOR_NAME con iOS $IOS_VERSION"
-        else
-          # Fallback: buscar cualquier iPhone disponible
-          SIMULATOR_LINE=$(echo "$DEVICE_LIST" | grep "iPhone" | grep "available" | head -1)
-          SIMULATOR_NAME=$(echo "$SIMULATOR_LINE" | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs)
-          IOS_VERSION=$(echo "$SIMULATOR_LINE" | grep -oE "OS=[0-9.]+" | head -1 | cut -d= -f2 || echo "latest")
-          echo "✅ Usando: $SIMULATOR_NAME con iOS $IOS_VERSION"
-        fi
-        
-        if [ -z "$SIMULATOR_NAME" ]; then
-          echo "❌ No se encontró simulador disponible"
-          exit 1
-        fi
-        
-        echo "simulator_name=$SIMULATOR_NAME" >> $GITHUB_OUTPUT
-        echo "ios_version=$IOS_VERSION" >> $GITHUB_OUTPUT
-    
-    - name: Build iOS para Simulador (Sin certificados)
-      run: |
-        cd ios/App
-        
-        SIMULATOR_NAME="${{ steps.simulator.outputs.simulator_name }}"
-        IOS_VERSION="${{ steps.simulator.outputs.ios_version }}"
-        
-        echo "=== Construyendo para simulador: $SIMULATOR_NAME (iOS $IOS_VERSION) ==="
-        
-        # Build para simulador - NO requiere certificados
-        xcodebuild -workspace App.xcworkspace \
-                   -scheme App \
-                   -configuration Debug \
-                   -sdk iphonesimulator \
-                   -destination "platform=iOS Simulator,name=$SIMULATOR_NAME,OS=$IOS_VERSION" \
-                   CODE_SIGN_IDENTITY="" \
-                   CODE_SIGNING_REQUIRED=NO \
-                   CODE_SIGNING_ALLOWED=NO \
-                   build
-    
-    - name: Crear app bundle para simulador
-      run: |
-        echo "✅ Build completado para simulador iOS"
-        echo "📱 La app está lista para ejecutar en simulador"
-        echo ""
-        echo "Para usar:"
-        echo "1. Descarga los artefactos"
-        echo "2. Abre el proyecto en Xcode (si tienes Mac)"
-        echo "3. O usa como PWA en iPhone Safari"
-    
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: ios-build-simulator
-        path: |
-          ios/App/build/
-          ios/App/App.xcworkspace
-        retention-days: 7
-    
-    - name: Crear PWA build (Funciona en iOS sin compilar)
-      run: |
-        echo "📱 También puedes usar la app como PWA en iOS:"
-        echo "1. Despliega dist/ a Netlify/Vercel"
-        echo "2. Abre en Safari en iPhone"
-        echo "3. Safari → Compartir → 'Agregar a pantalla de inicio'"
-        echo "4. ¡Funciona como app nativa sin compilar!"
-    
-    - name: Upload PWA build
-      uses: actions/upload-artifact@v4
-      with:
-        name: pwa-build
-        path: dist/
-        retention-days: 7
+      - name: Checkout código
+        uses: actions/checkout@v4
 
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
+      - name: Verificar versiones de Node.js y npm
+        run: |
+          echo "=== Versiones instaladas ==="
+          node -v
+          npm -v
+          NODE_VERSION=$(node --version | sed 's/v//')
+          NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
+          
+          if [ "$NODE_MAJOR" -lt 20 ]; then
+            echo "❌ ERROR: Node.js $NODE_VERSION es menor que 20.0.0"
+            echo "Capacitor CLI requiere Node.js >=20.0.0"
+            exit 1
+          fi
+          echo "✅ Node.js $NODE_VERSION cumple el requisito >=20.0.0"
 
+      - name: Instalar dependencias npm
+        run: npm ci
 
+      - name: Instalar Capacitor CLI
+        run: |
+          npm install --no-save @capacitor/cli@latest
+          echo "✅ Capacitor CLI instalado"
+          npx cap --version
 
+      - name: Instalar Capacitor iOS
+        run: npm install @capacitor/ios
 
+      - name: Build web app
+        run: npm run build
+
+      - name: Verificar Node.js y Capacitor antes de ejecutar
+        run: |
+          echo "=== Verificación final antes de Capacitor ==="
+          NODE_VERSION=$(node --version | sed 's/v//')
+          NODE_MAJOR=$(echo $NODE_VERSION | cut -d. -f1)
+          echo "Node.js version: $NODE_VERSION"
+          echo "npm version: $(npm --version)"
+          
+          if [ "$NODE_MAJOR" -lt 20 ]; then
+            echo "❌ ERROR: Node.js $NODE_VERSION es menor que 20.0.0"
+            exit 1
+          fi
+          
+          echo "Capacitor CLI version:"
+          npx cap --version || echo "⚠️ Capacitor CLI no encontrado"
+          echo "✅ Todo listo para ejecutar Capacitor"
+
+      - name: Agregar plataforma iOS
+        run: npx cap add ios || true
+
+      - name: Sincronizar iOS
+        run: npx cap sync ios
+
+      - name: Setup Ruby & CocoaPods
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Instalar CocoaPods
+        run: |
+          gem install cocoapods --no-document
+          cd ios || exit 0
+          pod install --repo-update || true
+          cd ..
+
+      - name: Listar simuladores disponibles (debug)
+        run: |
+          echo "=== Simuladores disponibles ==="
+          xcrun simctl list devices available | grep "iPhone" || true
+
+      - name: Build para iOS Simulator (sin code signing)
+        run: |
+          # Ajusta estas rutas/nombres según tu proyecto
+          WORKSPACE="ios/App/App.xcworkspace"
+          SCHEME="App"
+          
+          # Preferencia: iPhone 14 Pro, si no existe elige el primer iPhone disponible
+          PREFERRED="iPhone 14 Pro"
+          DEVICE_LIST=$(xcrun simctl list devices available)
+          
+          if echo "$DEVICE_LIST" | grep -q "$PREFERRED"; then
+            DEST_NAME="$PREFERRED"
+            echo "✅ Usando simulador preferido: $DEST_NAME"
+          else
+            # Fallback: buscar cualquier iPhone disponible
+            DEST_NAME=$(echo "$DEVICE_LIST" | grep -Eo 'iPhone [^()]+' | head -n1 | sed 's/ *$//' || echo "")
+            if [ -z "$DEST_NAME" ]; then
+              # Segundo fallback: buscar con "available" explícito
+              DEST_NAME=$(echo "$DEVICE_LIST" | grep "iPhone" | grep "available" | head -1 | sed -E 's/^[[:space:]]*([^(]+).*/\1/' | xargs || echo "")
+            fi
+            echo "✅ Usando simulador disponible: $DEST_NAME"
+          fi
+          
+          if [ -z "$DEST_NAME" ]; then
+            echo "❌ No se encontró un simulador iPhone disponible."
+            echo "=== Lista completa de dispositivos ==="
+            xcrun simctl list devices
+            exit 1
+          fi
+          
+          DEST="platform=iOS Simulator,OS=latest,name=$DEST_NAME"
+          echo "=== Construyendo para simulador: $DEST ==="
+          
+          cd ios/App || cd ios || exit 1
+          
+          xcodebuild -workspace "$WORKSPACE" \
+                     -scheme "$SCHEME" \
+                     -sdk iphonesimulator \
+                     -configuration Debug \
+                     -destination "$DEST" \
+                     clean build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGN_IDENTITY="" \
+                     DEVELOPMENT_TEAM=""
+
+      - name: Crear app bundle para simulador
+        run: |
+          echo "✅ Build completado para simulador iOS"
+          echo "📱 La app está lista para ejecutar en simulador"
+          echo ""
+          echo "Para usar:"
+          echo "1. Descarga los artefactos"
+          echo "2. Abre el proyecto en Xcode (si tienes Mac)"
+          echo "3. O usa como PWA en iPhone Safari"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-simulator
+          path: |
+            ios/App/build/
+            ios/App/App.xcworkspace
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Crear PWA build (Funciona en iOS sin compilar)
+        run: |
+          echo "📱 También puedes usar la app como PWA en iOS:"
+          echo "1. Despliega dist/ a Netlify/Vercel"
+          echo "2. Abre en Safari en iPhone"
+          echo "3. Safari → Compartir → 'Agregar a pantalla de inicio'"
+          echo "4. ¡Funciona como app nativa sin compilar!"
+
+      - name: Upload PWA build
+        uses: actions/upload-artifact@v4
+        with:
+          name: pwa-build
+          path: dist/
+          retention-days: 7
+          if-no-files-found: warn
