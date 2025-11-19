@@ -17,10 +17,10 @@ jobs:
     
     steps:
     - name: Checkout código
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
@@ -69,7 +69,7 @@ jobs:
         echo "3. O usa como PWA en iPhone Safari"
     
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ios-build-simulator
         path: |
@@ -86,7 +86,7 @@ jobs:
         echo "4. ¡Funciona como app nativa sin compilar!"
     
     - name: Upload PWA build
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: pwa-build
         path: dist/
