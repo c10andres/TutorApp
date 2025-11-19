@@ -1,0 +1,346 @@
+/* Estilos adicionales para asegurar que la aplicación se ajuste perfectamente a cualquier pantalla */
+
+/* Asegurar que el body y html no tengan overflow horizontal */
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+/* Asegurar que todos los elementos respeten el ancho de la pantalla */
+* {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Contenedores principales */
+.app-container {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Navegación responsive */
+.nav-responsive {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Contenido principal */
+.main-content {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Cards y componentes */
+.card-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Grids responsive */
+.grid-responsive {
+  display: grid;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  gap: 1rem;
+}
+
+/* Flexbox responsive */
+.flex-responsive {
+  display: flex;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  flex-wrap: wrap;
+}
+
+/* Texto responsive */
+.text-responsive {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+/* Imágenes responsive */
+.img-responsive {
+  max-width: 100%;
+  height: auto;
+  width: 100%;
+}
+
+/* Botones responsive */
+.btn-responsive {
+  min-width: 44px;
+  min-height: 44px;
+  width: auto;
+  max-width: 100%;
+}
+
+/* Formularios responsive */
+.form-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.form-responsive input,
+.form-responsive textarea,
+.form-responsive select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Tablas responsive */
+.table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+  white-space: nowrap;
+}
+
+/* Media queries para diferentes tamaños de pantalla */
+@media (max-width: 320px) {
+  .container-mobile {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  
+  .text-xs {
+    font-size: 0.6rem;
+  }
+  
+  .text-sm {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .container-mobile {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  
+  .grid-responsive {
+    grid-template-columns: 1fr;
+  }
+  
+  .flex-responsive {
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 768px) {
+  .grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .grid-responsive {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1025px) {
+  .grid-responsive {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Asegurar que no haya scroll horizontal en dispositivos móviles */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden;
+    position: relative;
+  }
+  
+  .mobile-nav-vertical {
+    max-width: 100vw;
+    width: 100%;
+  }
+  
+  .main-content {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* Ajustes para pantallas muy pequeñas */
+@media (max-width: 360px) {
+  .container-mobile {
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+  }
+  
+  .text-2xl {
+    font-size: 1.25rem;
+  }
+  
+  .text-xl {
+    font-size: 1.125rem;
+  }
+  
+  .text-lg {
+    font-size: 1rem;
+  }
+}
+
+/* Ajustes para landscape en móviles */
+@media (orientation: landscape) and (max-height: 500px) {
+  .min-h-screen-mobile {
+    min-height: 100vh;
+  }
+  
+  .nav-floating-button {
+    top: 0.5rem;
+    left: 0.5rem;
+  }
+}
+
+/* Asegurar que los elementos no se salgan de la pantalla */
+.no-overflow {
+  overflow: hidden;
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Ajustes para tablets */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .container-mobile {
+    max-width: 100%;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+}
+
+/* Ajustes para desktop */
+@media (min-width: 1025px) {
+  .container-mobile {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+}
+
+/* Utilidades adicionales */
+.w-full-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.h-full-responsive {
+  height: 100%;
+  max-height: 100vh;
+  overflow-y: auto;
+}
+
+.overflow-hidden-responsive {
+  overflow: hidden;
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Estilos específicos para tarjetas de tutores */
+.tutor-card-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.tutor-card-responsive .card-content {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.tutor-card-responsive .tutor-info {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+}
+
+.tutor-card-responsive .tutor-actions {
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+@media (min-width: 640px) {
+  .tutor-card-responsive .tutor-actions {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+.tutor-card-responsive .action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .tutor-card-responsive .action-buttons {
+    width: auto;
+  }
+}
+
+.tutor-card-responsive .action-button {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (min-width: 640px) {
+  .tutor-card-responsive .action-button {
+    flex: none;
+  }
+}
+
+/* Asegurar que los botones no se salgan */
+.tutor-card-responsive button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Grid responsive para tutores */
+.tutors-grid-responsive {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+@media (min-width: 768px) {
+  .tutors-grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .tutors-grid-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "appId": "com.TutorApp.colombia",
+  "appName": "TutorApp Colombia",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": [
+      "https://udconecta-4bfff.firebaseapp.com",
+      "https://udconecta-4bfff-default-rtdb.firebaseio.com",
+      "https://*.firebaseapp.com",
+      "https://*.firebaseio.com"
+    ]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#3b82f6",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "LIGHT_CONTENT",
+      "backgroundColor": "#3b82f6",
+      "overlaysWebView": false
+    },
+    "Keyboard": {
+      "resize": "body",
+      "style": "DARK",
+      "resizeOnFullScreen": true
+    },
+    "App": {
+      "deepLinkingEnabled": true
+    }
+  }
+}

@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Función helper para verificar autenticación
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Función helper para validar tipo de archivo de imagen
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    // Función helper para validar tipo de documento
+    function isDocument() {
+      return request.resource.contentType.matches('application/pdf') ||
+             request.resource.contentType.matches('application/msword') ||
+             request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.*') ||
+             request.resource.contentType.matches('text/.*');
+    }
+    
+    // Función helper para validar tamaño de archivo (en bytes)
+    function isValidSize(maxSize) {
+      return request.resource.size <= maxSize;
+    }
+    
+    // ===================
+    // FOTOS DE PERFIL
+    // ===================
+    match /profile_pictures/{userId}/{fileName} {
+      // Leer: Cualquier usuario autenticado
+      allow read: if isAuthenticated();
+      
+      // Escribir: Solo el dueño del perfil
+      // - Debe ser una imagen
+      // - Máximo 5MB
+      allow write: if isAuthenticated() && 
+        userId == request.auth.uid &&
+        isImage() &&
+        isValidSize(5 * 1024 * 1024);
+      
+      // Eliminar: Solo el dueño
+      allow delete: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // ===================
+    // DOCUMENTOS DE CHAT
+    // ===================
+    match /chat_files/{chatId}/{fileName} {
+      // Leer: Solo participantes del chat (verificar en Firestore)
+      allow read: if isAuthenticated();
+      
+      // Escribir: Usuario autenticado que participa en el chat
+      // - Imágenes hasta 10MB o documentos hasta 20MB
+      allow write: if isAuthenticated() &&
+        (
+          (isImage() && isValidSize(10 * 1024 * 1024)) ||
+          (isDocument() && isValidSize(20 * 1024 * 1024))
+        );
+    }
+    
+    // ===================
+    // DOCUMENTOS UNIVERSITARIOS
+    // ===================
+    match /university_documents/{userId}/{fileName} {
+      // Leer: Cualquier usuario autenticado
+      allow read: if isAuthenticated();
+      
+      // Escribir: Solo el dueño
+      // - Permite PDFs, Word, Excel, texto y otros documentos
+      // - Hasta 50MB
+      allow write: if isAuthenticated() && 
+        userId == request.auth.uid &&
+        (
+          isDocument() || 
+          request.resource.contentType.matches('application/.*') ||
+          request.resource.contentType.matches('text/.*')
+        ) &&
+        isValidSize(50 * 1024 * 1024);
+      
+      // Eliminar: Solo el dueño
+      allow delete: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // ===================
+    // CERTIFICADOS DE TUTORES
+    // ===================
+    match /tutor_certificates/{userId}/{fileName} {
+      // Leer: Cualquier usuario autenticado
+      allow read: if isAuthenticated();
+      
+      // Escribir: Solo el tutor dueño
+      // - Imágenes o PDFs hasta 10MB
+      allow write: if isAuthenticated() && 
+        userId == request.auth.uid &&
+        (isImage() || request.resource.contentType == 'application/pdf') &&
+        isValidSize(10 * 1024 * 1024);
+      
+      // Eliminar: Solo el dueño
+      allow delete: if isAuthenticated() && userId == request.auth.uid;
+    }
+    
+    // ===================
+    // TICKETS DE SOPORTE - ATTACHMENTS
+    // ===================
+    match /support_attachments/{ticketId}/{fileName} {
+      // Leer: Usuario autenticado
+      allow read: if isAuthenticated();
+      
+      // Escribir: Usuario autenticado
+      // - Imágenes o documentos hasta 10MB
+      allow write: if isAuthenticated() &&
+        (
+          (isImage() && isValidSize(10 * 1024 * 1024)) ||
+          (isDocument() && isValidSize(10 * 1024 * 1024))
+        );
+    }
+    
+    // ===================
+    // BLOQUEAR TODO LO DEMÁS
+    // ===================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

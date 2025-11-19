@@ -1,0 +1,74 @@
+/* Safe Area Support para dispositivos móviles */
+
+/* Asegurar que el body y html respeten las safe areas */
+html {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Para el contenedor principal */
+#root {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+/* Clase específica para headers que necesitan respetar la safe area superior */
+.safe-area-header {
+  padding-top: env(safe-area-inset-top);
+  background-color: white;
+}
+
+/* Clase para contenido que necesita padding superior */
+.safe-area-content {
+  padding-top: calc(env(safe-area-inset-top) + 1rem);
+}
+
+/* Clase para elementos que necesitan padding inferior */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Ajustes específicos para iOS */
+@supports (padding: max(0px)) {
+  html {
+    padding-top: max(env(safe-area-inset-top), 20px);
+    padding-bottom: max(env(safe-area-inset-bottom), 0px);
+    padding-left: max(env(safe-area-inset-left), 0px);
+    padding-right: max(env(safe-area-inset-right), 0px);
+  }
+}
+
+/* Para dispositivos con notch o Dynamic Island */
+@media screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) {
+  html {
+    padding-top: 44px; /* iPhone X, XS, 11 Pro */
+  }
+}
+
+@media screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) {
+  html {
+    padding-top: 44px; /* iPhone XR, 11 */
+  }
+}
+
+@media screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) {
+  html {
+    padding-top: 44px; /* iPhone XS Max, 11 Pro Max */
+  }
+}
+
+/* Para dispositivos Android con notch */
+@media screen and (min-width: 360px) and (max-width: 480px) {
+  html {
+    padding-top: max(env(safe-area-inset-top), 24px);
+  }
+}

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Prueba de Tailwind CSS - TutorApp</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .comparison-box {
+            border: 3px dashed #ccc;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+        }
+        .success-box {
+            border-color: #10b981;
+            background-color: #d1fae5;
+        }
+        .error-box {
+            border-color: #ef4444;
+            background-color: #fee2e2;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold text-center mb-8 text-blue-600">
+            🧪 Prueba Visual de Tailwind CSS
+        </h1>
+
+        <div class="comparison-box success-box">
+            <h2 class="text-2xl font-bold mb-4 text-green-700">
+                ✅ ASÍ DEBERÍA VERSE TU APP CON TAILWIND
+            </h2>
+            <p class="mb-4 text-gray-700">
+                Si tu aplicación se ve como los ejemplos de abajo, ¡Tailwind está funcionando!
+            </p>
+
+            <!-- Ejemplo de Login -->
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-100 p-8 rounded-lg">
+                <div class="max-w-md mx-auto bg-white rounded-xl shadow-lg p-8">
+                    <h3 class="text-2xl font-bold text-center mb-6 text-gray-800">
+                        🎓 TutorApp
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Email
+                            </label>
+                            <input 
+                                type="email" 
+                                placeholder="tu@email.com"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Contraseña
+                            </label>
+                            <input 
+                                type="password" 
+                                placeholder="••••••••"
+                                class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+
+                        <button class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg shadow-md transition duration-200">
+                            Iniciar Sesión
+                        </button>
+
+                        <div class="flex gap-2">
+                            <button class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg transition duration-200">
+                                Registrarse
+                            </button>
+                            <button class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg transition duration-200">
+                                Olvidé mi contraseña
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ejemplo de Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
+                <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition duration-200">
+                    <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl">📚</span>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">Buscar Tutores</h4>
+                    <p class="text-gray-600 text-sm">Encuentra el tutor perfecto para ti</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition duration-200">
+                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl">💬</span>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">Chat en Tiempo Real</h4>
+                    <p class="text-gray-600 text-sm">Comunícate con tu tutor</p>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-xl transition duration-200">
+                    <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-4">
+                        <span class="text-2xl">⭐</span>
+                    </div>
+                    <h4 class="font-bold text-lg mb-2">Calificaciones</h4>
+                    <p class="text-gray-600 text-sm">Lee reseñas de otros estudiantes</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison-box error-box">
+            <h2 class="text-2xl font-bold mb-4 text-red-700">
+                ❌ ASÍ SE VE SIN TAILWIND (HTML básico)
+            </h2>
+            <p class="mb-4 text-gray-700">
+                Si tu aplicación se ve así, Tailwind NO está funcionando:
+            </p>
+
+            <div style="background: white; padding: 20px; border: 1px solid #ccc;">
+                <h3 style="text-align: center; margin-bottom: 20px;">TutorApp</h3>
+                
+                <div style="margin-bottom: 10px;">
+                    <label>Email</label><br>
+                    <input type="email" placeholder="tu@email.com" style="width: 100%; padding: 5px;">
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <label>Contraseña</label><br>
+                    <input type="password" placeholder="••••••••" style="width: 100%; padding: 5px;">
+                </div>
+
+                <button style="width: 100%; padding: 10px; margin-bottom: 10px;">
+                    Iniciar Sesión
+                </button>
+
+                <div>
+                    <button style="padding: 5px 10px;">Registrarse</button>
+                    <button style="padding: 5px 10px; margin-left: 5px;">Olvidé mi contraseña</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instrucciones -->
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-6 my-8">
+            <h2 class="text-2xl font-bold mb-4 text-blue-800">
+                🎯 ¿Qué hacer ahora?
+            </h2>
+            
+            <div class="space-y-4">
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl">1️⃣</span>
+                    <div>
+                        <strong>Ejecuta el diagnóstico:</strong>
+                        <code class="block bg-white px-3 py-2 rounded mt-2">
+                            node DIAGNOSTICO_COMPLETO.js
+                        </code>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl">2️⃣</span>
+                    <div>
+                        <strong>Inicia el servidor:</strong>
+                        <code class="block bg-white px-3 py-2 rounded mt-2">
+                            npm run dev
+                        </code>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl">3️⃣</span>
+                    <div>
+                        <strong>Abre tu app en:</strong>
+                        <code class="block bg-white px-3 py-2 rounded mt-2">
+                            http://localhost:5173
+                        </code>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl">4️⃣</span>
+                    <div>
+                        <strong>Limpia el caché del navegador:</strong>
+                        <code class="block bg-white px-3 py-2 rounded mt-2">
+                            Ctrl + Shift + R (Windows/Linux)
+                            <br>
+                            Cmd + Shift + R (Mac)
+                        </code>
+                    </div>
+                </div>
+
+                <div class="flex items-start gap-3">
+                    <span class="text-2xl">5️⃣</span>
+                    <div>
+                        <strong>Compara tu app con el ejemplo "✅ ASÍ DEBERÍA VERSE" de arriba</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Botón de ayuda -->
+        <div class="text-center">
+            <a href="SI_NO_VEO_ESTILOS.md" class="inline-block bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg shadow-lg transition duration-200">
+                🆘 Si aún no funciona, haz clic aquí
+            </a>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-12 text-center text-gray-500 text-sm">
+            <p>Este archivo usa Tailwind CSS desde CDN para mostrarte cómo debería verse.</p>
+            <p class="mt-2">Tu aplicación debería verse exactamente igual cuando Tailwind esté funcionando.</p>
+        </div>
+    </div>
+
+    <script>
+        console.log('🎨 Esta página usa Tailwind CSS desde CDN');
+        console.log('✅ Si ves colores y diseño bonito aquí = Tu navegador funciona bien');
+        console.log('🔍 Compara esta página con tu app en http://localhost:5173');
+        console.log('📝 Si tu app NO se ve así, ejecuta: node DIAGNOSTICO_COMPLETO.js');
+    </script>
+</body>
+</html>

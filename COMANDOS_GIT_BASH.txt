@@ -1,0 +1,53 @@
+═══════════════════════════════════════════════════════════════
+  COMANDOS PARA GIT BASH - COPIA Y PEGA
+═══════════════════════════════════════════════════════════════
+
+1. NAVEGAR AL PROYECTO:
+───────────────────────────────────────────────────────────────
+cd "/c/Users/carlo/Downloads/TutorApp (18)"
+
+
+2. VERIFICAR GIT:
+───────────────────────────────────────────────────────────────
+git --version
+
+
+3. CONFIGURAR GIT (Solo primera vez):
+───────────────────────────────────────────────────────────────
+git config --global user.name "Tu Nombre"
+git config --global user.email "tu-email@ejemplo.com"
+
+
+4. INICIALIZAR REPOSITORIO:
+───────────────────────────────────────────────────────────────
+git init
+
+
+5. AGREGAR ARCHIVOS:
+───────────────────────────────────────────────────────────────
+git add .
+
+
+6. HACER COMMIT:
+───────────────────────────────────────────────────────────────
+git commit -m "Initial commit - TutorApp Colombia"
+
+
+7. CONECTAR CON GITHUB (REEMPLAZA TU_USUARIO y TU_REPO):
+───────────────────────────────────────────────────────────────
+git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
+git branch -M main
+git push -u origin main
+
+
+═══════════════════════════════════════════════════════════════
+  IMPORTANTE:
+═══════════════════════════════════════════════════════════════
+
+- Cuando pida contraseña, usa Personal Access Token
+- Cómo crear token: https://github.com/settings/tokens
+- Marca "repo" en los permisos
+- Copia el token y úsalo como contraseña
+
+═══════════════════════════════════════════════════════════════
+

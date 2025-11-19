@@ -1,0 +1,99 @@
+# Workflow para compilar iOS sin tener Mac
+# GRATIS si tu repo es público en GitHub
+# NO requiere certificados - Solo para desarrollo/pruebas
+
+name: Build iOS App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch: # Permite ejecutar manualmente
+
+jobs:
+  build-ios:
+    runs-on: macos-latest # Mac GRATIS en la nube
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+    
+    - name: Instalar dependencias
+      run: npm ci
+    
+    - name: Instalar Capacitor iOS
+      run: npm install @capacitor/ios
+    
+    - name: Build web app
+      run: npm run build
+    
+    - name: Agregar plataforma iOS
+      run: npx cap add ios || true
+    
+    - name: Sincronizar iOS
+      run: npx cap sync ios
+    
+    - name: Listar simuladores disponibles
+      run: |
+        xcrun simctl list devices available
+    
+    - name: Build iOS para Simulador (Sin certificados)
+      run: |
+        cd ios/App
+        # Build para simulador - NO requiere certificados
+        xcodebuild -workspace App.xcworkspace \
+                   -scheme App \
+                   -configuration Debug \
+                   -sdk iphonesimulator \
+                   -destination 'platform=iOS Simulator,name=iPhone 14 Pro' \
+                   CODE_SIGN_IDENTITY="" \
+                   CODE_SIGNING_REQUIRED=NO \
+                   CODE_SIGNING_ALLOWED=NO \
+                   build
+    
+    - name: Crear app bundle para simulador
+      run: |
+        echo "✅ Build completado para simulador iOS"
+        echo "📱 La app está lista para ejecutar en simulador"
+        echo ""
+        echo "Para usar:"
+        echo "1. Descarga los artefactos"
+        echo "2. Abre el proyecto en Xcode (si tienes Mac)"
+        echo "3. O usa como PWA en iPhone Safari"
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ios-build-simulator
+        path: |
+          ios/App/build/
+          ios/App/App.xcworkspace
+        retention-days: 7
+    
+    - name: Crear PWA build (Funciona en iOS sin compilar)
+      run: |
+        echo "📱 También puedes usar la app como PWA en iOS:"
+        echo "1. Despliega dist/ a Netlify/Vercel"
+        echo "2. Abre en Safari en iPhone"
+        echo "3. Safari → Compartir → 'Agregar a pantalla de inicio'"
+        echo "4. ¡Funciona como app nativa sin compilar!"
+    
+    - name: Upload PWA build
+      uses: actions/upload-artifact@v3
+      with:
+        name: pwa-build
+        path: dist/
+        retention-days: 7
+
+
+
+
+
+

@@ -1,0 +1,74 @@
+// Configuración de Firebase para UDConecta - Multiplataforma
+// Re-exportar desde la configuración unificada para compatibilidad
+export { 
+  app, 
+  database, 
+  auth, 
+  db,
+  getFirebaseApp,
+  getFirebaseDatabase,
+  getFirebaseAuth,
+  getFirebaseFirestore,
+  checkFirebaseConnection,
+  getFirebaseInstances,
+  reinitializeFirebase
+} from './utils/firebase-unified';
+
+// Función para verificar y sincronizar datos en Firebase
+export const initializeFirebaseData = async (): Promise<void> => {
+  try {
+    console.log('🚀 Verificando datos en Firebase...');
+    
+    // Importar funciones dinámicamente
+    const { checkFirebaseConnection, getFirebaseDatabase } = await import('./utils/firebase-unified');
+    
+    // Verificar conexión primero
+    const isConnected = await checkFirebaseConnection();
+    if (!isConnected) {
+      console.warn('⚠️ Firebase no está conectado, saltando verificación');
+      return;
+    }
+    
+    // Obtener instancia de database de forma segura
+    const database = getFirebaseDatabase();
+    
+    // Importar funciones de Firebase v9+ modular
+    const { ref, get } = await import('firebase/database');
+    
+    // Verificar que la instancia de database es válida
+    if (!database) {
+      console.error('❌ Firebase Database no está disponible');
+      return;
+    }
+    
+    // Solo verificar que existen datos, no crear nuevos
+    const usersRef = ref(database, 'users');
+    const usersSnapshot = await get(usersRef);
+    
+    if (usersSnapshot.exists()) {
+      const users = usersSnapshot.val();
+      console.log('✅ Usuarios encontrados en Firebase:', Object.keys(users).length);
+    } else {
+      console.log('❌ No hay usuarios en Firebase');
+    }
+    
+    const requestsRef = ref(database, 'requests');
+    const requestsSnapshot = await get(requestsRef);
+    
+    if (requestsSnapshot.exists()) {
+      const requests = requestsSnapshot.val();
+      console.log('✅ Solicitudes encontradas en Firebase:', Object.keys(requests).length);
+    } else {
+      console.log('❌ No hay solicitudes en Firebase');
+    }
+    
+    console.log('✅ Verificación de datos completada');
+  } catch (error) {
+    console.error('❌ Error verificando datos en Firebase:', error);
+    console.warn('⚠️ Continuando sin verificación de Firebase');
+  }
+};
+
+// Exportar app como default desde la configuración unificada
+import { app } from './utils/firebase-unified';
+export default app;

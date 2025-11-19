@@ -1,0 +1,88 @@
+═══════════════════════════════════════════════════════════
+🚀 INICIO RÁPIDO - VS CODE (Estilos de Tailwind)
+═══════════════════════════════════════════════════════════
+
+❌ PROBLEMA: Los estilos NO se ven cuando ejecutas en VS Code
+
+✅ SOLUCIÓN RÁPIDA - 3 COMANDOS:
+
+═══════════════════════════════════════════════════════════
+OPCIÓN 1: SCRIPT AUTOMÁTICO (RECOMENDADO)
+═══════════════════════════════════════════════════════════
+
+En Mac/Linux:
+    chmod +x fix-estilos-vscode.sh
+    ./fix-estilos-vscode.sh
+
+En Windows PowerShell (como Administrador):
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+    .\fix-estilos-vscode.ps1
+
+En Windows CMD:
+    fix-estilos-vscode.bat
+
+═══════════════════════════════════════════════════════════
+OPCIÓN 2: COMANDOS MANUALES
+═══════════════════════════════════════════════════════════
+
+1️⃣ Limpiar e instalar:
+   npm install
+
+2️⃣ Ejecutar:
+   npm run dev
+
+3️⃣ Abrir navegador:
+   http://localhost:5173
+
+═══════════════════════════════════════════════════════════
+OPCIÓN 3: LIMPIEZA COMPLETA (Si opción 2 no funciona)
+═══════════════════════════════════════════════════════════
+
+En Mac/Linux:
+    rm -rf node_modules package-lock.json .vite
+    npm cache clean --force
+    npm install
+    npm run dev
+
+En Windows PowerShell:
+    Remove-Item -Recurse -Force node_modules, package-lock.json, .vite
+    npm cache clean --force
+    npm install
+    npm run dev
+
+En Windows CMD:
+    rmdir /s /q node_modules
+    del package-lock.json
+    npm cache clean --force
+    npm install
+    npm run dev
+
+═══════════════════════════════════════════════════════════
+🔍 VERIFICACIONES
+═══════════════════════════════════════════════════════════
+
+✓ Node.js instalado (v16+):    node --version
+✓ npm instalado (v8+):          npm --version
+✓ Puerto disponible:            5173 libre
+✓ Navegador abierto en:         http://localhost:5173
+
+═══════════════════════════════════════════════════════════
+❓ ¿AÚN NO FUNCIONA?
+═══════════════════════════════════════════════════════════
+
+1. Lee el archivo: SOLUCION_ESTILOS_VS_CODE.md
+2. Abre la consola del navegador (F12) y busca errores
+3. Verifica que no tengas un antivirus bloqueando
+4. Intenta ejecutar VS Code como administrador
+
+═══════════════════════════════════════════════════════════
+📌 EXTENSIONES VS CODE NECESARIAS
+═══════════════════════════════════════════════════════════
+
+Instala estas extensiones en VS Code:
+- Tailwind CSS IntelliSense (bradlc.vscode-tailwindcss)
+- PostCSS Language Support (csstools.postcss)
+
+═══════════════════════════════════════════════════════════
+
+Después de ejecutar estos pasos, los estilos deberían funcionar.

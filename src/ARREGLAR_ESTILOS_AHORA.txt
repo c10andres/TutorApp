@@ -1,0 +1,152 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║               ⚡ ARREGLA LOS ESTILOS AHORA - UN SOLO COMANDO                ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ❌ PROBLEMA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Descargaste el código en VS Code pero los estilos NO se ven.
+  La página carga pero todo se ve sin formato/diseño.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✅ SOLUCIÓN - COPIA Y PEGA ESTE COMANDO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  🪟 WINDOWS - Command Prompt (CMD)                                     │
+  │  ───────────────────────────────────────────────────────────────────   │
+  │                                                                         │
+  │  fix-estilos-vscode.bat                                                │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  🪟 WINDOWS - PowerShell (Ejecuta COMO ADMINISTRADOR)                  │
+  │  ───────────────────────────────────────────────────────────────────   │
+  │                                                                         │
+  │  Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass            │
+  │  .\fix-estilos-vscode.ps1                                              │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │                                                                         │
+  │  🍎 MAC / 🐧 LINUX - Terminal                                          │
+  │  ───────────────────────────────────────────────────────────────────   │
+  │                                                                         │
+  │  chmod +x fix-estilos-vscode.sh                                        │
+  │  ./fix-estilos-vscode.sh                                               │
+  │                                                                         │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔍 ¿QUÉ HACE EL SCRIPT?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. ✅ Verifica que Node.js esté instalado
+  2. 🗑️  Elimina archivos antiguos (node_modules, caché)
+  3. ✅ Verifica que todos los archivos críticos existan
+  4. 🧹 Limpia la caché de npm
+  5. 📦 Reinstala todas las dependencias correctamente
+  6. ⚙️  Configura VS Code con los settings óptimos
+  7. ✅ Te dice si todo está listo
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🚀 DESPUÉS DE EJECUTAR EL SCRIPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Cuando el script termine, ejecuta:
+
+      npm run dev
+
+  Y abre en tu navegador:
+
+      http://localhost:5173
+
+  ✅ Los estilos deberían verse perfectamente ahora.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ❓ ¿PREFIERES HACERLO MANUAL?
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Si no quieres usar el script, ejecuta estos comandos uno por uno:
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Mac/Linux:                                                             │
+  │                                                                         │
+  │  rm -rf node_modules package-lock.json .vite                           │
+  │  npm cache clean --force                                               │
+  │  npm install                                                           │
+  │  npm run dev                                                           │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Windows PowerShell:                                                    │
+  │                                                                         │
+  │  Remove-Item -Recurse -Force node_modules, package-lock.json, .vite    │
+  │  npm cache clean --force                                               │
+  │  npm install                                                           │
+  │  npm run dev                                                           │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Windows CMD:                                                           │
+  │                                                                         │
+  │  rmdir /s /q node_modules                                              │
+  │  del package-lock.json                                                 │
+  │  npm cache clean --force                                               │
+  │  npm install                                                           │
+  │  npm run dev                                                           │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🔧 DIAGNÓSTICO (Si aún no funciona)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Ejecuta el diagnóstico automático:
+
+      node verificar-estilos.js
+
+  Esto te dirá exactamente qué está mal.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  📖 MÁS INFORMACIÓN
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  • Guía completa:         SOLUCION_ESTILOS_VS_CODE.md
+  • Inicio rápido:         INICIO_RAPIDO_VS_CODE.txt
+  • Verificación:          verificar-estilos.js
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  🆘 SI NADA FUNCIONA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  1. Verifica que tienes Node.js 16 o superior: node --version
+  2. Asegúrate de estar en la carpeta correcta del proyecto
+  3. Cierra VS Code y vuelve a abrirlo
+  4. Desactiva temporalmente el antivirus
+  5. Ejecuta VS Code como administrador
+  6. Revisa la consola del navegador (F12) para ver errores
+
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                                                                              ║
+║                     ⚡ ¡ES MUY FÁCIL, SOLO UN COMANDO! ⚡                    ║
+║                                                                              ║
+║                        fix-estilos-vscode.bat (Windows)                     ║
+║                      ./fix-estilos-vscode.sh (Mac/Linux)                    ║
+║                                                                              ║
+╚══════════════════════════════════════════════════════════════════════════════╝

@@ -1,0 +1,70 @@
+═══════════════════════════════════════════════════════════════
+  COMANDOS PARA LINUX - COPIA Y PEGA
+═══════════════════════════════════════════════════════════════
+
+1. INSTALAR GIT (Si no está instalado):
+───────────────────────────────────────────────────────────────
+# Ubuntu/Debian:
+sudo apt update && sudo apt install git
+
+# Fedora:
+sudo dnf install git
+
+# Arch Linux:
+sudo pacman -S git
+
+
+2. CONFIGURAR GIT (Solo primera vez):
+───────────────────────────────────────────────────────────────
+git config --global user.name "Tu Nombre"
+git config --global user.email "tu-email@ejemplo.com"
+
+
+3. NAVEGAR AL PROYECTO:
+───────────────────────────────────────────────────────────────
+cd ~/Downloads/TutorApp\ \(18\)
+# O la ruta donde esté tu proyecto
+
+
+4. INICIALIZAR REPOSITORIO:
+───────────────────────────────────────────────────────────────
+git init
+
+
+5. AGREGAR ARCHIVOS:
+───────────────────────────────────────────────────────────────
+git add .
+
+
+6. HACER COMMIT:
+───────────────────────────────────────────────────────────────
+git commit -m "Initial commit - TutorApp Colombia"
+
+
+7. CONECTAR CON GITHUB (REEMPLAZA TU_USUARIO y TU_REPO):
+───────────────────────────────────────────────────────────────
+git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
+git branch -M main
+git push -u origin main
+
+
+8. PROBAR APP COMO iOS (Desarrollo):
+───────────────────────────────────────────────────────────────
+npm run dev
+# Luego: Chrome → F12 → Ctrl+Shift+M → iPhone 14 Pro
+
+
+═══════════════════════════════════════════════════════════════
+  IMPORTANTE:
+═══════════════════════════════════════════════════════════════
+
+- Cuando pida contraseña, usa Personal Access Token
+- Cómo crear token: https://github.com/settings/tokens
+- Marca "repo" en los permisos
+- Copia el token y úsalo como contraseña
+
+- Para probar iOS: Usa Chrome DevTools (F12 → Ctrl+Shift+M)
+- Selecciona "iPhone 14 Pro" en el menú desplegable
+
+═══════════════════════════════════════════════════════════════
+

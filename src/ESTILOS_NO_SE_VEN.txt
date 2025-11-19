@@ -1,0 +1,80 @@
+
+╔══════════════════════════════════════════════════════════════════╗
+║                                                                  ║
+║              🎨 SOLUCIÓN: ESTILOS NO SE VEN                     ║
+║                                                                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+
+❌ PROBLEMA:
+   Los estilos de Tailwind CSS no se ven.
+   La aplicación se muestra como HTML sin estilos (texto plano).
+
+
+✅ SOLUCIÓN RÁPIDA:
+
+   Opción 1 - Script Automatizado (RECOMENDADO):
+   
+   Linux/Mac:
+       chmod +x ARREGLAR_ESTILOS.sh
+       ./ARREGLAR_ESTILOS.sh
+   
+   Windows (PowerShell):
+       .\ARREGLAR_ESTILOS.ps1
+
+
+   Opción 2 - Comandos Manuales:
+   
+   1. Detener servidor (Ctrl+C)
+   
+   2. Limpiar instalación:
+      rm -rf node_modules package-lock.json
+      npm cache clean --force
+   
+   3. Reinstalar:
+      npm install
+   
+   4. Ejecutar:
+      npm run dev
+   
+   5. Abrir:
+      http://localhost:5173
+
+
+═══════════════════════════════════════════════════════════════════
+
+🔍 VERIFICAR QUE FUNCIONA:
+
+   Al abrir http://localhost:5173 deberías ver:
+
+   ✅ Gradiente azul-índigo de fondo
+   ✅ Logo "TutorApp" estilizado
+   ✅ Formulario con bordes redondeados
+   ✅ Botón azul con hover effect
+   ✅ Campos de input con fondo claro
+   ✅ Sin texto plano
+
+   Si aún ves texto plano:
+   - Presiona Ctrl+Shift+R (limpiar cache)
+   - Abre en modo incógnito
+   - Revisa consola del navegador (F12)
+
+═══════════════════════════════════════════════════════════════════
+
+📚 MÁS INFORMACIÓN:
+
+   Ver archivo: SOLUCION_ESTILOS.md
+
+
+═══════════════════════════════════════════════════════════════════
+
+🛠️ QUÉ SE ARREGLÓ:
+
+   ✅ Cambió Tailwind CSS v4 (beta) → v3.4.1 (estable)
+   ✅ Creó tailwind.config.js
+   ✅ Creó postcss.config.js
+   ✅ Actualizó styles/globals.css
+   ✅ Configuró PostCSS correctamente
+
+═══════════════════════════════════════════════════════════════════
+

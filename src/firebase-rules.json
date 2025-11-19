@@ -1,0 +1,81 @@
+{
+  "rules": {
+    // Reglas para usuarios - permisivas para pruebas
+    "users": {
+      ".read": "auth != null",
+      ".indexOn": ["id", "email", "currentMode", "isAvailable", "subjects"],
+      "$userId": {
+        ".write": "auth != null && (auth.uid == $userId || auth != null)",
+        ".validate": "newData.hasChildren(['id', 'email', 'name', 'currentMode'])"
+      }
+    },
+    
+    // Reglas para solicitudes de tutoría - totalmente permisivas con índices
+    "requests": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["tutorId", "studentId", "status", "createdAt", "userId"],
+      "$requestId": {
+        ".validate": "newData.hasChildren(['id', 'studentId', 'tutorId', 'status'])"
+      }
+    },
+    
+    // Reglas para solicitudes de tutoría (legacy) - totalmente permisivas
+    "tutoring_requests": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["tutorId", "studentId", "status", "createdAt", "userId"],
+      "$requestId": {
+        ".validate": "newData.hasChildren(['id', 'studentId', 'tutorId', 'status'])"
+      }
+    },
+    
+    // Reglas para chats - totalmente permisivas con índices
+    "chats": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["participants", "lastMessageTime", "requestId", "createdAt"]
+    },
+    
+    // Reglas para mensajes - totalmente permisivas con índices
+    "messages": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["chatId", "senderId", "timestamp", "type", "read"]
+    },
+    
+    // Reglas para notificaciones - totalmente permisivas con índices
+    "notifications": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["userId", "createdAt", "read", "type", "requestId"]
+    },
+    
+    // Reglas para pagos - totalmente permisivas para pruebas con índices
+    "payments": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["userId", "requestId", "status", "createdAt"]
+    },
+    
+    // Reglas para reseñas - totalmente permisivas con índices
+    "reviews": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".indexOn": ["tutorId", "studentId", "requestId", "createdAt"]
+    },
+    
+    // Reglas para materias - lectura pública, escritura autenticada
+    "subjects": {
+      ".read": true,
+      ".write": "auth != null",
+      ".indexOn": ["category", "name"]
+    },
+    
+    // Permitir otros nodos que puedan ser necesarios
+    "$other": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}

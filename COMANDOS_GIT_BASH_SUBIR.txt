@@ -1,0 +1,68 @@
+═══════════════════════════════════════════════════════════════
+  COMANDOS PARA GIT BASH - SUBIR CÓDIGO A GITHUB
+═══════════════════════════════════════════════════════════════
+
+IMPORTANTE: Ejecuta estos comandos EN ORDEN en Git Bash
+
+───────────────────────────────────────────────────────────────
+PASO 1: NAVEGAR AL PROYECTO
+───────────────────────────────────────────────────────────────
+cd "/c/Users/carlo/Downloads/TutorApp (18)"
+
+───────────────────────────────────────────────────────────────
+PASO 2: CONFIGURAR GIT (Solo primera vez)
+───────────────────────────────────────────────────────────────
+git config --global user.name "Tu Nombre"
+git config --global user.email "tu-email@ejemplo.com"
+
+───────────────────────────────────────────────────────────────
+PASO 3: INICIALIZAR GIT
+───────────────────────────────────────────────────────────────
+git init
+
+───────────────────────────────────────────────────────────────
+PASO 4: AGREGAR ARCHIVOS
+───────────────────────────────────────────────────────────────
+git add .
+
+───────────────────────────────────────────────────────────────
+PASO 5: HACER COMMIT
+───────────────────────────────────────────────────────────────
+git commit -m "Initial commit - TutorApp Colombia"
+
+───────────────────────────────────────────────────────────────
+PASO 6: CONECTAR CON GITHUB
+───────────────────────────────────────────────────────────────
+# REEMPLAZA TU_USUARIO y TU_REPO con tus datos reales
+# Ejemplo: Si tu usuario es "carlo123" y el repo es "TutorApp":
+# git remote add origin https://github.com/carlo123/TutorApp.git
+
+git remote add origin https://github.com/TU_USUARIO/TU_REPO.git
+git branch -M main
+
+───────────────────────────────────────────────────────────────
+PASO 7: SUBIR CÓDIGO
+───────────────────────────────────────────────────────────────
+git push -u origin main
+
+# Cuando pida contraseña, usa tu Personal Access Token
+# (NO tu contraseña normal de GitHub)
+
+═══════════════════════════════════════════════════════════════
+  ANTES DE EJECUTAR:
+═══════════════════════════════════════════════════════════════
+
+1. Crear repositorio en GitHub:
+   https://github.com/new
+   - Nombre: TutorApp
+   - Visibilidad: Público
+   - NO marques: README, .gitignore, license
+
+2. Crear Personal Access Token:
+   https://github.com/settings/tokens
+   - Generate new token (classic)
+   - Marca "repo" en permisos
+   - Copia el token (lo usarás como contraseña)
+
+═══════════════════════════════════════════════════════════════
+
