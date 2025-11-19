@@ -19,11 +19,17 @@ jobs:
     - name: Checkout código
       uses: actions/checkout@v4
     
-    - name: Setup Node.js
+    - name: Setup Node.js 20
       uses: actions/setup-node@v4
       with:
         node-version: '20'
         cache: 'npm'
+    
+    - name: Verificar versión de Node.js
+      run: |
+        node --version
+        npm --version
+        echo "✅ Node.js debe ser >=20.0.0 para Capacitor"
     
     - name: Instalar dependencias
       run: npm ci
@@ -33,6 +39,13 @@ jobs:
     
     - name: Build web app
       run: npm run build
+    
+    - name: Verificar Node.js antes de Capacitor
+      run: |
+        echo "Node.js version:"
+        node --version
+        echo "npm version:"
+        npm --version
     
     - name: Agregar plataforma iOS
       run: npx cap add ios || true
