@@ -34,6 +34,9 @@ jobs:
     - name: Instalar dependencias
       run: npm ci
     
+    - name: Instalar Capacitor CLI
+      run: npm install --no-save @capacitor/cli
+    
     - name: Instalar Capacitor iOS
       run: npm install @capacitor/ios
     
@@ -48,7 +51,7 @@ jobs:
         npm --version
     
     - name: Agregar plataforma iOS
-      run: npx cap add ios || true
+      run: npx cap add ios
     
     - name: Sincronizar iOS
       run: npx cap sync ios
