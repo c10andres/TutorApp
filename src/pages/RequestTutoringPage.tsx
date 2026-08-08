@@ -13,19 +13,15 @@ import { Alert, AlertDescription } from '../components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { User, TutorRequest } from '../types';
 import { tutoringService } from '../services/tutoring';
-import { paymentService } from '../services/payment';
-import { PaymentMethodSelector } from '../components/PaymentMethodSelector';
-import { formatPriceCOP } from '../utils/formatters';
-import { 
+// Removed: paymentService, PaymentMethodSelector, credit card imports
+import {
   Calendar,
   Clock,
   MapPin,
-  DollarSign,
   ArrowLeft,
   CheckCircle,
   Star,
   UserIcon,
-  CreditCard,
   Loader2,
   AlertCircle,
   BookOpen,
@@ -34,7 +30,8 @@ import {
   Home,
   CalendarDays,
   Time,
-  CheckCircle2
+  CheckCircle2,
+  Award // Added Award icon for points
 } from 'lucide-react';
 
 interface RequestTutoringPageProps {
@@ -49,9 +46,9 @@ const SUBJECTS = [
 ];
 
 const DURATION_OPTIONS = [
-  { value: 60, label: '1 hora', price: 1 },
-  { value: 90, label: '1.5 horas', price: 1.5 },
-  { value: 120, label: '2 horas', price: 2 }
+  { value: 60, label: '1 hora' },
+  { value: 90, label: '1.5 horas' },
+  { value: 120, label: '2 horas' }
 ];
 
 // Horarios disponibles para reserva
@@ -72,10 +69,9 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
     duration: 60,
     location: 'online',
     customLocation: '',
-    isEmergency: false,
-    paymentMethod: ''
+    isEmergency: false
   });
-  
+
   // Estado para calendario avanzado
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string>('');
@@ -84,30 +80,29 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
-  const [pendingRequest, setPendingRequest] = useState<any>(null);
+  // Removed paymentConfirmation state
 
   if (!tutor || !user) {
     return (
-        <div className="max-w-2xl mx-auto">
-          <Card>
-            <CardContent className="p-8 text-center">
-              <AlertCircle className="size-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg mb-2">Información incompleta</h3>
-              <p className="text-gray-600 mb-4">
-                No se encontró información del tutor seleccionado
-              </p>
-              <Button onClick={() => onNavigate('search')}>
-                Buscar tutores
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="max-w-2xl mx-auto">
+        <Card>
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="size-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg mb-2">Información incompleta</h3>
+            <p className="text-gray-600 mb-4">
+              No se encontró información del tutor seleccionado
+            </p>
+            <Button onClick={() => onNavigate('search')}>
+              Buscar tutores
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
-  const totalCost = paymentService.calculateTotalAmount(tutor.hourlyRate, formData.duration);
-  const platformFee = paymentService.calculatePlatformFee((tutor.hourlyRate * formData.duration) / 60);
+  const hourlyPoints = tutor.hourlyPoints || 5;
+  const estimatedPoints = Math.ceil((hourlyPoints * formData.duration) / 60);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -152,151 +147,41 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
     setError('');
 
     // Validar que todos los campos estén completos
-    if (!formData.subject || !formData.preferredDateTime || !formData.paymentMethod) {
+    if (!formData.subject || !formData.preferredDateTime) {
       setError('Por favor completa todos los campos requeridos.');
       return;
     }
 
-    // Preparar la solicitud pero no crearla aún
-    const request = {
-      studentId: user.id,
-      tutorId: tutor.id,
-      subject: formData.subject,
-      description: formData.description,
-      scheduledTime: new Date(formData.preferredDateTime),
-      duration: formData.duration,
-      location: formData.location === 'custom' ? formData.customLocation : formData.location,
-      hourlyRate: tutor.hourlyRate,
-      totalAmount: totalCost,
-      status: 'pending' as const,
-      isEmergency: formData.isEmergency,
-      isImmediate: formData.isEmergency,
-      paymentMethod: formData.paymentMethod,
-      hasReview: false
-    };
-
-    setPendingRequest(request);
-    setShowPaymentConfirmation(true);
-  };
-
-  const handlePaymentConfirmation = async () => {
-    if (!pendingRequest) return;
-
     setLoading(true);
-    setError('');
 
     try {
-      // Simular procesamiento de pago
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Crear la solicitud solo después de confirmar el pago
-      await tutoringService.createRequest(pendingRequest);
+      // Create request directly without payment processing
+      const request = {
+        studentId: user.id,
+        tutorId: tutor.id,
+        subject: formData.subject,
+        description: formData.description,
+        scheduledTime: new Date(formData.preferredDateTime),
+        duration: formData.duration,
+        location: formData.location === 'custom' ? formData.customLocation : formData.location,
+        hourlyPoints: hourlyPoints,
+        totalPoints: estimatedPoints,
+        status: 'pending' as const,
+        isEmergency: formData.isEmergency,
+        isImmediate: formData.isEmergency,
+        hasReview: false
+      };
+
+      await tutoringService.createRequest(request as any); // Cast to any if Typescript complains about optional deprecated fields
       setSuccess(true);
-      setShowPaymentConfirmation(false);
     } catch (error) {
-      console.error('Error al procesar pago y crear solicitud:', error);
-      setError('Error al procesar el pago. Por favor intenta de nuevo.');
+      console.error('Error al crear solicitud:', error);
+      setError('Error al enviar la solicitud. Por favor intenta de nuevo.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancelPayment = () => {
-    setShowPaymentConfirmation(false);
-    setPendingRequest(null);
-    setError('');
-  };
-
-  if (showPaymentConfirmation && pendingRequest) {
-    return (
-      <div className="max-w-2xl mx-auto">
-        <Card>
-          <CardContent className="p-8">
-            <div className="text-center mb-6">
-              <div className="mx-auto w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-                <CreditCard className="size-8 text-blue-600" />
-              </div>
-              <h2 className="text-xl mb-2">Confirmar Pago</h2>
-              <p className="text-gray-600">
-                Revisa los detalles de tu clase antes de proceder con el pago
-              </p>
-            </div>
-
-            {error && (
-              <Alert variant="destructive" className="mb-6">
-                <AlertCircle className="size-4" />
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="bg-gray-50 rounded-lg p-6 mb-6">
-              <h3 className="font-semibold mb-4">Detalles de la clase:</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span>Tutor:</span>
-                  <span className="font-medium">{tutor.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Materia:</span>
-                  <span className="font-medium">{pendingRequest.subject}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Duración:</span>
-                  <span className="font-medium">{pendingRequest.duration} minutos</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Modalidad:</span>
-                  <span className="font-medium">
-                    {pendingRequest.location === 'online' ? 'Virtual' : 
-                     pendingRequest.location === 'tutor' ? 'Casa del tutor' :
-                     pendingRequest.location === 'student' ? 'Mi casa' : pendingRequest.location}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Método de pago:</span>
-                  <span className="font-medium">{pendingRequest.paymentMethod}</span>
-                </div>
-                <div className="border-t pt-3">
-                  <div className="flex justify-between font-semibold text-lg">
-                    <span>Total a pagar:</span>
-                    <span className="text-blue-600">{formatPriceCOP(pendingRequest.totalAmount)}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleCancelPayment}
-                className="flex-1"
-                disabled={loading}
-              >
-                Cancelar
-              </Button>
-              <Button 
-                onClick={handlePaymentConfirmation}
-                className="flex-1"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin mr-2" />
-                    Procesando pago...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="size-4 mr-2" />
-                    Confirmar pago
-                  </>
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
 
   if (success) {
     return (
@@ -306,10 +191,10 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
             <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
               <CheckCircle className="size-8 text-green-600" />
             </div>
-            
-            <h2 className="text-xl mb-2">¡Pago exitoso y solicitud enviada!</h2>
+
+            <h2 className="text-xl mb-2">¡Solicitud enviada con éxito!</h2>
             <p className="text-gray-600 mb-6">
-              Tu pago se procesó correctamente y tu solicitud ha sido enviada a {tutor.name}. Te notificaremos cuando responda.
+              Tu solicitud ha sido enviada a {tutor.name}. Te notificaremos cuando responda.
             </p>
 
             <div className="bg-gray-50 rounded-lg p-4 mb-6 text-left">
@@ -328,14 +213,18 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
                 <div className="flex justify-between">
                   <span>Modalidad:</span>
                   <span className="font-medium">
-                    {formData.location === 'online' ? 'Virtual' : 
-                     formData.location === 'tutor' ? 'Casa del tutor' :
-                     formData.location === 'student' ? 'Mi casa' : formData.customLocation}
+                    {formData.location === 'online' ? 'Virtual' :
+                      formData.location === 'tutor' ? 'Casa del tutor' :
+                        formData.location === 'student' ? 'Mi casa' : formData.customLocation}
                   </span>
                 </div>
+                {/* Points Summary instead of Cost */}
                 <div className="flex justify-between border-t pt-2">
-                  <span className="font-medium">Total:</span>
-                  <span className="font-medium text-blue-600">{formatPriceCOP(totalCost)}</span>
+                  <span className="font-medium">Valor Estimado:</span>
+                  <div className="flex items-center gap-1 text-blue-600 font-medium">
+                    <Award className="size-4" />
+                    <span>{estimatedPoints} PM</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -382,7 +271,7 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
               <AvatarImage src={tutor.avatar} alt={tutor.name} />
               <AvatarFallback>{tutor.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
             </Avatar>
-            
+
             <div className="flex-1">
               <h3 className="font-semibold text-lg">{tutor.name}</h3>
               <div className="flex items-center gap-4 text-sm text-gray-600 mt-1">
@@ -394,12 +283,12 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
                   <UserIcon className="size-4 text-gray-400" />
                   <span>{tutor.experience}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="size-4 text-gray-400" />
-                  <span>{formatPriceCOP(tutor.hourlyRate)}/hora</span>
+                <div className="flex items-center gap-2 text-blue-600 font-medium">
+                  <Award className="size-4" />
+                  <span>{hourlyPoints} PM/hora</span>
                 </div>
               </div>
-              
+
               <div className="flex flex-wrap gap-1 mt-2">
                 {tutor.subjects.slice(0, 3).map((subject) => (
                   <Badge key={subject} variant="secondary" className="text-xs">
@@ -540,9 +429,6 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
                   >
                     <Clock className="size-4" />
                     <span className="text-xs">{option.label}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatPriceCOP(tutor.hourlyRate * option.price)}
-                    </span>
                   </Button>
                 ))}
               </div>
@@ -562,7 +448,7 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
                   <Video className="size-4" />
                   <span className="text-xs">Virtual</span>
                 </Button>
-                
+
                 <Button
                   type="button"
                   variant={formData.location === 'student' ? "default" : "outline"}
@@ -581,7 +467,7 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
               <div>
                 <Label className="text-sm font-medium">Clase urgente</Label>
                 <p className="text-xs text-gray-600">
-                  Solicitar clase para hoy o mañana (+20% tarifa urgencia)
+                  Solicitar clase para hoy o mañana (Alta prioridad)
                 </p>
               </div>
               <Switch
@@ -592,66 +478,12 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
           </CardContent>
         </Card>
 
-        {/* Payment */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="size-5" />
-              Método de pago
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PaymentMethodSelector
-              selectedMethod={formData.paymentMethod}
-              onMethodChange={(method) => handleInputChange('paymentMethod', method)}
-              amount={totalCost}
-            />
-          </CardContent>
-        </Card>
-
-        {/* Summary */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Resumen del pago</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span>Costo por hora:</span>
-              <span>{formatPriceCOP(tutor.hourlyRate)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Duración:</span>
-              <span>{formData.duration} minutos</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Subtotal:</span>
-              <span>{formatPriceCOP((tutor.hourlyRate * formData.duration) / 60)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Tarifa de la plataforma:</span>
-              <span>{formatPriceCOP(platformFee)}</span>
-            </div>
-            {formData.isEmergency && (
-              <div className="flex justify-between text-sm text-orange-600">
-                <span>Tarifa urgencia (20%):</span>
-                <span>{formatPriceCOP((tutor.hourlyRate * formData.duration) / 60 * 0.2)}</span>
-              </div>
-            )}
-            <div className="border-t pt-3">
-              <div className="flex justify-between font-semibold">
-                <span>Total:</span>
-                <span className="text-blue-600">{formatPriceCOP(totalCost)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Submit */}
         <Button
           type="submit"
-          className="w-full"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white"
           size="lg"
-          disabled={loading || !formData.subject || !formData.preferredDateTime || !formData.paymentMethod}
+          disabled={loading || !formData.subject || !formData.preferredDateTime}
         >
           {loading ? (
             <>
@@ -660,8 +492,8 @@ export function RequestTutoringPage({ onNavigate, tutor }: RequestTutoringPagePr
             </>
           ) : (
             <>
-              <CreditCard className="size-4 mr-2" />
-              Continuar al pago • {formatPriceCOP(totalCost)}
+              <CheckCircle className="size-4 mr-2" />
+              Enviar Solicitud
             </>
           )}
         </Button>

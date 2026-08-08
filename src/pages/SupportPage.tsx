@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { supportService } from '../services/support';
 import { formatDate } from '../utils/formatters';
-import { 
+import {
   HelpCircle,
   MessageSquare,
   Phone,
@@ -54,11 +54,11 @@ const SUPPORT_CATEGORIES = [
     color: 'bg-blue-100 text-blue-600'
   },
   {
-    id: 'payments',
-    name: 'Pagos',
-    icon: CreditCard,
-    description: 'Métodos de pago, facturación y reembolsos',
-    color: 'bg-green-100 text-green-600'
+    id: 'reputation',
+    name: 'Puntos y Rangos',
+    icon: Star,
+    description: 'Sistema de méritos, puntos y niveles',
+    color: 'bg-yellow-100 text-yellow-600'
   },
   {
     id: 'account',
@@ -93,9 +93,9 @@ const FAQ_DATA = [
   },
   {
     id: 'faq-2',
-    category: 'payments',
-    question: '¿Qué métodos de pago acepta la plataforma?',
-    answer: 'Aceptamos tarjetas de crédito y débito (Visa, Mastercard), PSE, Nequi, Daviplata y transferencias bancarias. Todos los pagos se procesan de forma segura a través de nuestra plataforma.'
+    category: 'reputation',
+    question: '¿Cómo gano Puntos de Mérito?',
+    answer: 'Ganas puntos impartiendo tutorías, recibiendo buenas calificaciones, y participando activamente en el foro de la comunidad. Tus puntos determinan tu Rango (Novato, Monitor, Maestro).'
   },
   {
     id: 'faq-3',
@@ -111,9 +111,9 @@ const FAQ_DATA = [
   },
   {
     id: 'faq-5',
-    category: 'payments',
-    question: '¿Cuándo recibo el pago como tutor?',
-    answer: 'Los pagos se procesan automáticamente 24 horas después de que una clase se marca como completada. El dinero se transfiere a tu método de pago registrado.'
+    category: 'reputation',
+    question: '¿Para qué sirven los puntos?',
+    answer: 'Los puntos se usan para solicitar tutorías "solidarias" a otros compañeros y para subir de nivel. Un nivel más alto te da mayor visibilidad en el Smart Matching y acceso a beneficios exclusivos.'
   }
 ];
 
@@ -142,7 +142,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
   // Filtrar FAQs basado en búsqueda y categoría
   const filteredFAQs = FAQ_DATA.filter(faq => {
     const matchesSearch = faq.question.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
+      faq.answer.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'all' || faq.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
@@ -160,31 +160,49 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
 
     setChatMessages(prev => [...prev, userMessage]);
 
-    // Simular respuesta del bot
+    // Simular "escribiendo..."
     setTimeout(() => {
+      // Lógica simple de coincidencia de palabras clave
+      const query = newMessage.toLowerCase();
+      let botResponseText = "";
+
+      const matchedFAQ = FAQ_DATA.find(faq =>
+        query.includes(faq.category.toLowerCase()) ||
+        faq.question.toLowerCase().split(' ').some(word => word.length > 3 && query.includes(word))
+      );
+
+      if (query.includes('hola') || query.includes('buenos') || query.includes('buenas')) {
+        botResponseText = "¡Hola! Soy tu asistente virtual. Puedo ayudarte con temas de tutorías, pagos, cuenta y más. ¿Cuál es tu consulta?";
+      } else if (matchedFAQ) {
+        botResponseText = `Encontré información que podría ayudarte:\n\n${matchedFAQ.answer}\n\n¿Esto resuelve tu duda?`;
+      } else if (query.includes('human') || query.includes('persona') || query.includes('agente')) {
+        botResponseText = "Entiendo que prefieres hablar con una persona. He generado un ticket de alta prioridad y un asesor se comunicará contigo en breve.";
+      } else {
+        botResponseText = "No estoy seguro de haber entendido completamente. ¿Podrías reformular tu pregunta? Intenta usar palabras clave como 'pagos', 'horario', 'cancelar' o 'certificado'.";
+      }
+
       const botResponse = {
         id: Date.now() + 1,
         type: 'bot' as const,
-        message: 'Gracias por tu mensaje. He registrado tu consulta y un agente te responderá pronto. ¿Hay algo más en lo que pueda ayudarte?',
+        message: botResponseText,
         timestamp: new Date()
       };
       setChatMessages(prev => [...prev, botResponse]);
-    }, 1000);
+    }, 1200);
 
     setNewMessage('');
   };
 
   const handleCreateTicket = async () => {
     try {
-      await supportService.createTicket({
+      await supportService.createSupportTicket(user?.id || '', {
         ...ticketForm,
-        userId: user?.id || '',
-        status: 'open'
+        priority: ticketForm.priority as any
       });
-      
+
       setShowTicketDialog(false);
       setTicketForm({ subject: '', category: '', priority: 'medium', description: '' });
-      
+
       // Mostrar confirmación
       alert('Ticket creado exitosamente. Te responderemos pronto.');
     } catch (error) {
@@ -199,7 +217,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
         <HelpCircle className="size-16 text-blue-600 mx-auto mb-4" />
         <h1 className="text-3xl mb-2">🆘 Centro de Ayuda y Soporte</h1>
         <p className="text-gray-600 max-w-3xl mx-auto">
-          Encuentra respuestas rápidas, chatea con nuestra IA de soporte o contacta nuestro equipo especializado. 
+          Encuentra respuestas rápidas, chatea con nuestra IA de soporte o contacta nuestro equipo especializado.
           Estamos aquí para resolver cualquier duda sobre la plataforma.
         </p>
       </div>
@@ -289,7 +307,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                         <ChevronRight className="size-5 text-gray-400 flex-shrink-0" />
                       )}
                     </button>
-                    
+
                     {expandedFAQ === faq.id && (
                       <div className="px-6 pb-6 border-t">
                         <div className="pt-4">
@@ -337,11 +355,10 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                     key={message.id}
                     className={`flex gap-3 ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                      message.type === 'user' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-white border'
-                    }`}>
+                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.type === 'user'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border'
+                      }`}>
                       <div className="flex items-center gap-2 mb-1">
                         {message.type === 'bot' ? (
                           <Bot className="size-4" />
@@ -394,7 +411,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button 
+                <Button
                   onClick={() => setShowTicketDialog(true)}
                   className="w-full"
                 >
@@ -423,7 +440,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                     <p className="text-sm text-gray-600">+57 (1) 234-5678</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   <Mail className="size-5 text-blue-600" />
                   <div>
@@ -431,7 +448,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                     <p className="text-sm text-gray-600">soporte@tutorapp.com</p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3">
                   <Clock className="size-5 text-blue-600" />
                   <div>
@@ -466,7 +483,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                 </Button>
                 <Button variant="ghost" className="w-full justify-start">
                   <Download className="size-4 mr-2" />
-                  Manual de Pagos
+                  Manual de Rangos
                 </Button>
               </CardContent>
             </Card>
@@ -508,7 +525,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                 </Button>
                 <Button variant="ghost" className="w-full justify-start">
                   <ArrowRight className="size-4 mr-2" />
-                  Configurar métodos de pago
+                  Cómo ganar puntos y subir de rango
                 </Button>
                 <Button variant="ghost" className="w-full justify-start">
                   <ArrowRight className="size-4 mr-2" />
@@ -529,7 +546,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
               Describe tu problema detalladamente para recibir la mejor ayuda posible
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div>
               <Label htmlFor="ticket-subject">Asunto</Label>
@@ -540,7 +557,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                 onChange={(e) => setTicketForm(prev => ({ ...prev, subject: e.target.value }))}
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="ticket-category">Categoría</Label>
@@ -560,7 +577,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <Label htmlFor="ticket-priority">Prioridad</Label>
                 <Select
@@ -579,7 +596,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
                 </Select>
               </div>
             </div>
-            
+
             <div>
               <Label htmlFor="ticket-description">Descripción detallada</Label>
               <Textarea
@@ -591,7 +608,7 @@ export function SupportPage({ onNavigate }: SupportPageProps) {
               />
             </div>
           </div>
-          
+
           <div className="flex gap-2 pt-4">
             <Button variant="outline" onClick={() => setShowTicketDialog(false)} className="flex-1">
               Cancelar

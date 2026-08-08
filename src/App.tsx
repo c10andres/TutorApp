@@ -5,6 +5,8 @@ import './utils/android-gpu-optimization';
 import './utils/android-performance-config';
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import LoadingScreen from "./LoadingScreen";
+import { db } from './firebase'; // Importa tu instancia de Firestore
+import { collection, addDoc, getDocs, query, onSnapshot, serverTimestamp } from "firebase/firestore";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
@@ -16,15 +18,22 @@ import { RequestsPage } from "./pages/RequestsPage";
 import { RequestTutoringPage } from "./pages/RequestTutoringPage";
 import { RequestDetailsPage } from "./pages/RequestDetailsPage";
 import { ReviewPage } from "./pages/ReviewPage";
-import { PaymentsPage } from "./pages/PaymentsPage";
+import { WalletPage } from "./pages/WalletPage";
 import { AcademicManagementPage } from "./pages/AcademicManagementPage";
 import { UniversityDocsPage } from "./pages/UniversityDocsPage";
 import { SmartMatchingPage } from "./pages/SmartMatchingPage";
 import { AcademicPredictorPage } from "./pages/AcademicPredictorPage";
 import { StudyPlannerPage } from "./pages/StudyPlannerPage";
+import { SchedulePage } from "./pages/SchedulePage";
+import { SubjectGroupsPage } from "./pages/SubjectGroupsPage";
 import { SupportPage } from "./pages/SupportPage";
 import { AppDemoPage } from "./pages/AppDemoPage";
+import { ForumPage } from "./pages/ForumPage";
+import { InteractionsAnalyticsPage } from "./pages/InteractionsAnalyticsPage";
+import { SurveyAnalyticsPage } from "./pages/SurveyAnalyticsPage";
+import { SurveyPage } from "./pages/SurveyPage";
 import TutorProfilePage from "./pages/TutorProfilePage";
+import { AdminPanel } from "./components/AdminPanel";
 import { FirebaseIndexAlert } from "./components/FirebaseIndexAlert";
 import { SimpleToast } from "./components/SimpleToast";
 import { ResponsiveContainer } from "./components/ResponsiveContainer";
@@ -39,10 +48,12 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { androidDebug } from './utils/android-debug';
 import { AndroidInitializer } from './utils/android-initializer';
+import AppDebug from "./AppDebug";
 
 // Tipos para navegación
 export type Page =
   | "home"
+  | "admin"
   | "search"
   | "profile"
   | "chat"
@@ -51,14 +62,20 @@ export type Page =
   | "request-details"
   | "review"
   | "tutor-profile"
-  | "payments"
+  | "wallet"
   | "academic"
   | "docs"
   | "smart-matching"
   | "academic-predictor"
   | "study-planner"
+  | "schedule"
+  | "subject-groups"
   | "support"
+  | "forum"
   | "demo"
+  | "interactions-analytics"
+  | "survey-analytics"
+  | "survey"
   | "login"
   | "register"
   | "forgot-password";
@@ -74,6 +91,26 @@ interface NavigationState {
   };
 }
 
+// --- Datos de Encuesta (Estado Global) ---
+const weightedRandom = (weights: { [key: string]: number }): string => {
+  const total = Object.values(weights).reduce((sum, weight) => sum + weight, 0);
+  let random = Math.random() * total;
+  for (const key in weights) {
+    if (random < weights[key]) return key;
+    random -= weights[key];
+  }
+  return Object.keys(weights)[0];
+};
+
+const initialSurveyData = Array.from({ length: 150 }, (_, i) => ({
+  id: i + 1,
+  role: ['Estudiante', 'Tutor', 'Ambos'][i % 3],
+  frequency: ['Diario', 'Semanal', 'Mensual'][i % 3],
+  navigation: weightedRandom({ 'Muy fácil': 0.3, 'Fácil': 0.5, 'Regular': 0.15, 'Difícil': 0.05 }),
+  speed: weightedRandom({ 'Excelente': 0.4, 'Buena': 0.5, 'Aceptable': 0.08, 'Lenta': 0.02 }),
+  findability: weightedRandom({ 'Sí, sin problema': 0.6, 'Sí, pero con dificultades': 0.3, 'No, me costó bastante': 0.08, 'No lo encontré': 0.02 }),
+}));
+
 function AppContent() {
   const { user, loading } = useAuth();
   const platform = usePlatform();
@@ -82,16 +119,50 @@ function AppContent() {
     { page: "home" as Page },
   );
   const [sidebarState, setSidebarState] = useState({ isCollapsed: true, isHidden: true });
-  
+  const [surveyData, setSurveyData] = useState(initialSurveyData);
+
+  // Cargar datos iniciales de la encuesta desde Firestore
+  useEffect(() => {
+    const q = query(collection(db, "surveyResponses"));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const responses: any[] = [];
+      querySnapshot.forEach((doc) => {
+        responses.push({ id: doc.id, ...doc.data() });
+      });
+      // Combina datos iniciales con los de la BD para tener volumen
+      setSurveyData([...initialSurveyData, ...responses]);
+      androidDebug.log('📊 Encuestas cargadas desde Firestore:', responses.length);
+    });
+
+    return () => unsubscribe(); // Limpiar el listener
+  }, []);
+
+  // Función para añadir nuevas respuestas a la encuesta
+  const handleSurveySubmit = async (newResponse: any) => {
+    console.log("✅ Nueva respuesta recibida en App.tsx:", newResponse);
+    try {
+      await addDoc(collection(db, "surveyResponses"), {
+        ...newResponse,
+        submittedAt: serverTimestamp(),
+        userId: user?.id || 'anonymous',
+      });
+      console.log("✅ Encuesta guardada en Firestore");
+      // El listener onSnapshot se encargará de actualizar el estado local
+      handleNavigate('survey-analytics');
+    } catch (error) {
+      console.error("❌ Error guardando encuesta en Firestore:", error);
+    }
+  };
+
   // Debug específico para Android
   useEffect(() => {
     androidDebug.log('🚀 AppContent inicializado');
     androidDebug.checkAppState();
     androidDebug.checkComponentsLoaded();
-    
+
     // Inicializar datos para Android
     AndroidInitializer.initializeApp();
-    
+
     // Optimizar rendimiento para Android (solo si es necesario)
     if (Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android') {
       const optimizePerformance = async () => {
@@ -103,7 +174,7 @@ function AppContent() {
           console.warn('⚠️ Error en optimización de Android:', error);
         }
       };
-      
+
       // Ejecutar con delay para no interferir con la inicialización
       setTimeout(optimizePerformance, 2000);
     }
@@ -136,15 +207,15 @@ function AppContent() {
       try {
         if (Capacitor.isNativePlatform()) {
           console.log('🔧 Configurando características nativas para:', platform.platform);
-          
+
           // StatusBar se configura automáticamente con useStatusBar hook
 
           // Ocultar splash screen cuando la app cargue
           await SplashScreen.hide();
-          
+
           // Forzar ajuste de StatusBar
           scheduleStatusBarFix();
-          
+
           console.log('✅ Características nativas configuradas correctamente');
         } else {
           console.log('🌐 Ejecutándose en web - características nativas deshabilitadas');
@@ -165,7 +236,7 @@ function AppContent() {
     };
 
     document.addEventListener('touchmove', preventZoom, { passive: false });
-    
+
     return () => {
       document.removeEventListener('touchmove', preventZoom);
     };
@@ -177,7 +248,7 @@ function AppContent() {
     data?: NavigationState["data"],
   ) => {
     setNavigation({ page, data });
-    
+
     // Scroll to top en navegación
     if (typeof window !== 'undefined') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -240,12 +311,12 @@ function AppContent() {
   }
 
   // Usuario autenticado - mostrar aplicación principal
-  const renderPageWithNavigation = (PageComponent: React.ComponentType<{ onNavigate: typeof handleNavigate }>) => {
-    androidDebug.log('🎨 Renderizando página con navegación', { 
-      page: navigation.page, 
-      component: PageComponent.name 
+  const renderPageWithNavigation = (PageComponent: React.ComponentType<any>) => {
+    androidDebug.log('🎨 Renderizando página con navegación', {
+      page: navigation.page,
+      component: PageComponent.name
     });
-    
+
     // Calcular el margen izquierdo basado en el estado de la barra lateral
     const getContentMargin = () => {
       const margin = sidebarState.isHidden ? 'ml-0' : 'ml-72'; // 288px para mejor ajuste
@@ -258,13 +329,18 @@ function AppContent() {
         <div className={`transition-all duration-300 ease-in-out ${getContentMargin()}`} style={{ backgroundColor: '#f9fafb', minHeight: '100vh', paddingTop: '4rem' }}>
           <ResponsiveContainer fullHeight mobileNavSpace={false}>
             <div style={{ backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-              <PageComponent onNavigate={handleNavigate} />
+              <PageComponent
+                onNavigate={handleNavigate}
+                // Pasamos los datos y funciones relevantes a las páginas
+                surveyData={surveyData}
+                onSurveySubmit={handleSurveySubmit}
+              />
             </div>
           </ResponsiveContainer>
         </div>
         {/* Navegación vertical ocultable - Solo en móviles */}
-        <MobileNavigation 
-          currentPage={navigation.page} 
+        <MobileNavigation
+          currentPage={navigation.page}
           onNavigate={handleNavigate}
           onSidebarStateChange={handleSidebarStateChange}
         />
@@ -293,8 +369,8 @@ function AppContent() {
               </div>
             </ResponsiveContainer>
           </div>
-          <MobileNavigation 
-            currentPage={navigation.page} 
+          <MobileNavigation
+            currentPage={navigation.page}
             onNavigate={handleNavigate}
             onSidebarStateChange={handleSidebarStateChange}
           />
@@ -317,8 +393,8 @@ function AppContent() {
               </div>
             </ResponsiveContainer>
           </div>
-          <MobileNavigation 
-            currentPage={navigation.page} 
+          <MobileNavigation
+            currentPage={navigation.page}
             onNavigate={handleNavigate}
             onSidebarStateChange={handleSidebarStateChange}
           />
@@ -337,8 +413,8 @@ function AppContent() {
               </div>
             </ResponsiveContainer>
           </div>
-          <MobileNavigation 
-            currentPage={navigation.page} 
+          <MobileNavigation
+            currentPage={navigation.page}
             onNavigate={handleNavigate}
             onSidebarStateChange={handleSidebarStateChange}
           />
@@ -359,16 +435,16 @@ function AppContent() {
               </div>
             </ResponsiveContainer>
           </div>
-          <MobileNavigation 
-            currentPage={navigation.page} 
+          <MobileNavigation
+            currentPage={navigation.page}
             onNavigate={handleNavigate}
             onSidebarStateChange={handleSidebarStateChange}
           />
         </div>
       );
 
-    case "payments":
-      return renderPageWithNavigation(PaymentsPage);
+    case "wallet":
+      return renderPageWithNavigation(WalletPage);
 
     case "academic":
       return renderPageWithNavigation(AcademicManagementPage);
@@ -385,11 +461,29 @@ function AppContent() {
     case "study-planner":
       return renderPageWithNavigation(StudyPlannerPage);
 
+    case "schedule":
+      return renderPageWithNavigation(SchedulePage);
+
+    case "subject-groups":
+      return renderPageWithNavigation(SubjectGroupsPage);
+
     case "support":
       return renderPageWithNavigation(SupportPage);
 
+    case "forum":
+      return renderPageWithNavigation(ForumPage);
+
     case "demo":
       return renderPageWithNavigation(AppDemoPage);
+
+    case "interactions-analytics":
+      return renderPageWithNavigation(InteractionsAnalyticsPage);
+
+    case "survey-analytics":
+      return renderPageWithNavigation(SurveyAnalyticsPage);
+
+    case "survey":
+      return renderPageWithNavigation(SurveyPage);
 
     case "tutor-profile":
       return (
@@ -397,7 +491,7 @@ function AppContent() {
           <div className={`transition-all duration-300 ease-in-out ${sidebarState.isHidden ? 'ml-0' : 'ml-72'}`} style={{ backgroundColor: '#f9fafb', minHeight: '100vh', paddingTop: '4rem' }}>
             <ResponsiveContainer fullHeight mobileNavSpace={false}>
               <div style={{ backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-                <TutorProfilePage 
+                <TutorProfilePage
                   onNavigate={handleNavigate}
                   tutor={navigation.data?.tutor}
                   tutorId={navigation.data?.tutorId}
@@ -405,8 +499,29 @@ function AppContent() {
               </div>
             </ResponsiveContainer>
           </div>
-          <MobileNavigation 
-            currentPage={navigation.page} 
+          <MobileNavigation
+            currentPage={navigation.page}
+            onNavigate={handleNavigate}
+            onSidebarStateChange={handleSidebarStateChange}
+          />
+        </div>
+      );
+
+    case "admin":
+      if (!user?.isAdmin) {
+        return renderPageWithNavigation(HomePage);
+      }
+      return (
+        <div className="min-h-screen bg-gray-50 relative" style={{ backgroundColor: '#f9fafb' }}>
+          <div className={`transition-all duration-300 ease-in-out ${sidebarState.isHidden ? 'ml-0' : 'ml-72'}`} style={{ backgroundColor: '#f9fafb', minHeight: '100vh', paddingTop: '4rem' }}>
+            <ResponsiveContainer fullHeight mobileNavSpace={false}>
+              <div style={{ backgroundColor: '#f9fafb', minHeight: '100vh', padding: '1rem' }}>
+                <AdminPanel />
+              </div>
+            </ResponsiveContainer>
+          </div>
+          <MobileNavigation
+            currentPage={navigation.page}
             onNavigate={handleNavigate}
             onSidebarStateChange={handleSidebarStateChange}
           />
@@ -418,22 +533,59 @@ function AppContent() {
   }
 }
 
+function Debugger() {
+  const [showDebug, setShowDebug] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={() => setShowDebug((prev) => !prev)}
+        className="fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-full shadow-lg z-[99999] hover:bg-red-700 transition-all"
+        aria-label="Toggle Debug Panel"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 4.5-2 18.5" /><path d="m20 2-2 2" /><path d="m15 7 3 3" /><path d="M12 10 9 13" /><path d="m6.5 17.5 5.5-5.5" /><path d="m2 22 5-5" /></svg>
+      </button>
+      {showDebug && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-[99990] flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-2xl w-[95%] h-[90%] max-w-4xl overflow-hidden">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h2 className="text-lg font-bold">Panel de Depuración</h2>
+              <button onClick={() => setShowDebug(false)} className="text-gray-500 hover:text-gray-800">&times;</button>
+            </div>
+            <div className="overflow-auto h-[calc(100%-57px)]">
+              <AppDebug />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 export default function App() {
+  const isDebugMode =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).get("debug") === "true";
+
   return (
     <AuthProvider>
       <div className="min-h-screen-mobile bg-gray-50 overflow-x-hidden scroll-smooth mobile-safe-all w-full max-w-full app-container page-container">
         <AppContent />
+      </div>
 
-        {/* Firebase Index Alert - only show when there are index issues */}
-        <FirebaseIndexAlert />
+      {/* Herramientas de depuración (solo si ?debug=true) */}
+      {isDebugMode && <Debugger />}
 
-        {/* Simple Toast for user feedback */}
-        <SimpleToast />
+      {/* Firebase Index Alert - only show when there are index issues */}
+      <FirebaseIndexAlert />
 
-        {/* Global styles for the app - Multiplataforma */}
-        <style
-          dangerouslySetInnerHTML={{
-            __html: `
+      {/* Simple Toast for user feedback */}
+      <SimpleToast />
+
+      {/* Global styles for the app - Multiplataforma */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
           /* Prevenir comportamientos no deseados en móviles */
           * {
             -webkit-tap-highlight-color: transparent;
@@ -600,9 +752,8 @@ export default function App() {
             /* Preparado para dark mode futuro */
           }
         `,
-          }}
-        />
-      </div>
+        }}
+      />
     </AuthProvider>
   );
 }

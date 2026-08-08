@@ -12,6 +12,7 @@ interface AuthContextType {
   resetPassword: (email: string) => Promise<void>;
   switchMode: (mode: UserMode) => Promise<User>;
   updateProfile: (updates: Partial<User>) => Promise<User>;
+  deleteAccount: () => Promise<void>;
   isTestUser: (user?: User | null) => boolean;
 }
 
@@ -92,17 +93,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const updateProfile = async (updates: Partial<User>): Promise<User> => {
     console.log('🔍 AuthContext: updateProfile iniciado');
     console.log('📊 AuthContext: updates recibidos:', updates);
-    
+
     setLoading(true);
     try {
       const updatedUser = await authService.updateProfile(updates);
       console.log('✅ AuthContext: Usuario actualizado recibido:', updatedUser);
-      
+
       // Actualizar el estado local del usuario
       setUser(updatedUser);
       console.log('🔄 AuthContext: Estado del usuario actualizado');
-      
+
       return updatedUser;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteAccount = async (): Promise<void> => {
+    setLoading(true);
+    try {
+      await authService.deleteAccount();
+      // Reset local state
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -121,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     resetPassword,
     switchMode,
     updateProfile,
+    deleteAccount,
     isTestUser,
   };
 

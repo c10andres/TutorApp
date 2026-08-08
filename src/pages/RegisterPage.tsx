@@ -5,7 +5,10 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
+import { ScrollArea } from '../components/ui/scroll-area';
 import { Alert, AlertDescription } from '../components/ui/alert';
+import { Checkbox } from '../components/ui/checkbox';
 import { Loader2, Eye, EyeOff, UserPlus } from 'lucide-react';
 
 interface RegisterPageProps {
@@ -23,10 +26,16 @@ export function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
+  const [consentAccepted, setConsentAccepted] = useState(false);
 
   const validateForm = () => {
     if (!formData.name.trim()) {
       setError('El nombre es requerido');
+      return false;
+    }
+
+    if (!consentAccepted) {
+      setError('Debes aceptar el consentimiento informado y tratamiento de datos.');
       return false;
     }
 
@@ -178,6 +187,29 @@ export function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
                 </div>
               </div>
 
+
+
+              {/* Consentimiento Informado (Thesis Requirement) */}
+              <div className="flex items-start space-x-2 py-4 px-1">
+                <Checkbox
+                  id="consent"
+                  checked={consentAccepted}
+                  onCheckedChange={(checked) => setConsentAccepted(checked as boolean)}
+                  className="mt-1"
+                />
+                <div className="grid gap-1.5 leading-none">
+                  <label
+                    htmlFor="consent"
+                    className="text-sm font-medium leading-none cursor-pointer"
+                  >
+                    Consentimiento de Privacidad y Uso de Datos.
+                  </label>
+                  <p className="text-xs text-muted-foreground text-gray-600">
+                    Acepto participar en estas pruebas bajo las normas básicas de respeto. Entiendo y acepto que <strong>todos mis datos personales y registros serán eliminados permanentemente</strong> al finalizar las pruebas del prototipo (Habeas Data).
+                  </p>
+                </div>
+              </div>
+
               <Button
                 type="submit"
                 className="w-full"
@@ -218,7 +250,8 @@ export function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
               </div>
             </div>
 
-            {/* Master Users info */}
+            {/* Master Users info - HIDDEN as per user request */}
+            {/* 
             <div className="mt-6 p-3 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg">
               <p className="text-sm text-gray-700 mb-2 flex items-center gap-1">
                 <span className="text-yellow-600">👑</span>
@@ -231,6 +264,7 @@ export function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
                 <p className="text-orange-600 mt-2">🔑 Incluye opciones de prueba y desarrollo</p>
               </div>
             </div>
+            */}
 
             {/* Features info */}
             <div className="mt-4 p-3 bg-blue-50 rounded-lg">
@@ -246,19 +280,71 @@ export function RegisterPage({ onNavigateToLogin }: RegisterPageProps) {
             </div>
 
             {/* Terms */}
-            <p className="text-xs text-gray-500 text-center mt-4">
-              Al crear una cuenta, aceptas nuestros{' '}
-              <a href="#" className="text-blue-600 hover:underline">
-                Términos de Servicio
-              </a>{' '}
-              y{' '}
-              <a href="#" className="text-blue-600 hover:underline">
-                Política de Privacidad
-              </a>
-            </p>
+            {/* Terms */}
+            <div className="flex justify-center gap-2 text-xs text-gray-500 mt-4">
+              <span>Al crear una cuenta, aceptas nuestros</span>
+
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button className="text-blue-600 hover:underline">
+                    Términos de Servicio
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Términos y Condiciones del Prototipo</DialogTitle>
+                    <DialogDescription>
+                      Por favor lea atentamente los siguientes términos antes de continuar.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="h-[300px] pr-4">
+                    <div className="space-y-4 text-sm text-gray-700">
+                      <p><strong>1. Naturaleza Académica:</strong> Esta aplicación es un prototipo desarrollado exclusivamente con fines académicos como parte de un proyecto de grado.</p>
+                      <p><strong>2. Sin Garantías:</strong> El servicio se proporciona "tal cual" para pruebas de funcionalidad. No se garantiza la disponibilidad continua ni la integridad de los datos a largo plazo.</p>
+                      <p><strong>3. Datos de Prueba:</strong> Los datos ingresados (calificaciones, horarios, perfiles) se utilizarán únicamente para validar el funcionamiento de los algoritmos de emparejamiento y predicción académica.</p>
+                      <p><strong>4. Eliminación de Datos:</strong> Al finalizar el periodo de evaluación académica, todas las bases de datos y registros de usuarios serán eliminados permanentemente.</p>
+                      <p><strong>5. Conducta:</strong> Se espera un comportamiento respetuoso en los foros y chats. El contenido ofensivo será moderado automáticamente.</p>
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
+
+              <span>y</span>
+
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button className="text-blue-600 hover:underline">
+                    Política de Privacidad
+                  </button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Política de Privacidad y Habeas Data</DialogTitle>
+                    <DialogDescription>
+                      Tratamiento de sus datos personales en este experimento académico.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="h-[300px] pr-4">
+                    <div className="space-y-4 text-sm text-gray-700">
+                      <p><strong>1. Recolección de Datos:</strong> Recolectamos su nombre, correo electrónico y datos académicos simulados o reales según su elección para probar las funciones de la aplicación.</p>
+                      <p><strong>2. Uso de la Información:</strong> Su información será procesada localmente y en la nube (Firebase) para:
+                        <ul className="list-disc pl-5 mt-1">
+                          <li>Autenticación de usuarios.</li>
+                          <li>Cálculo de predicciones académicas.</li>
+                          <li>Emparejamiento con tutores.</li>
+                        </ul>
+                      </p>
+                      <p><strong>3. Derechos del Usuario (Habeas Data):</strong> Usted tiene derecho a conocer, actualizar, rectificar y suprimir sus datos personales. Puede eliminar su cuenta en cualquier momento desde la sección de Perfil.</p>
+                      <p><strong>4. Confidencialidad:</strong> Sus datos no serán compartidos con terceros ni utilizados para fines comerciales.</p>
+                      <p><strong>5. Consentimiento Informado:</strong> Al registrarse, usted acepta voluntariamente participar en esta prueba de concepto bajo las condiciones descritas.</p>
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
+            </div>
           </CardContent>
         </Card>
       </div>
-    </div>
+    </div >
   );
 }

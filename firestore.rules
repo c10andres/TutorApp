@@ -237,6 +237,73 @@ service cloud.firestore {
     }
     
     // ===================
+    // COLECCIÓN: documentDownloadCounts (Contadores Globales de Descargas)
+    // ===================
+    match /documentDownloadCounts/{documentId} {
+      // Leer: PÚBLICO - Cualquiera puede leer los contadores (incluso sin autenticación)
+      // Los contadores son GLOBALES y deben persistir entre sesiones
+      // Esto permite que los contadores se mantengan incluso al cerrar sesión o salir de la app
+      allow read: if true;
+      
+      // Crear: Solo usuarios autenticados pueden crear contador al descargar
+      allow create: if isAuthenticated();
+      
+      // Actualizar: Solo usuarios autenticados pueden incrementar (al descargar)
+      // Esto asegura que todos los usuarios vean el mismo conteo actualizado y PERSISTIDO
+      allow update: if isAuthenticated();
+      
+      // No se permite eliminar (solo lectura/actualización)
+      // Los contadores PERSISTEN permanentemente en Firestore
+      allow delete: if false;
+    }
+    
+    // ===================
+    // COLECCIÓN: forumQuestions (Preguntas del Foro)
+    // ===================
+    match /forumQuestions/{questionId} {
+      // Leer: Cualquier usuario autenticado puede leer preguntas
+      allow read: if isAuthenticated();
+      
+      // Crear: Cualquier usuario autenticado puede crear preguntas
+      allow create: if isAuthenticated() && 
+        request.resource.data.authorId == request.auth.uid;
+      
+      // Actualizar: Solo el autor de la pregunta puede actualizarla
+      allow update: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid;
+      
+      // Eliminar: Solo el autor de la pregunta puede eliminarla
+      allow delete: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid;
+    }
+    
+    // ===================
+    // COLECCIÓN: forumAnswers (Respuestas del Foro)
+    // ===================
+    match /forumAnswers/{answerId} {
+      // Leer: Cualquier usuario autenticado puede leer respuestas
+      allow read: if isAuthenticated();
+      
+      // Crear: Cualquier usuario autenticado puede crear respuestas
+      allow create: if isAuthenticated() && 
+        request.resource.data.authorId == request.auth.uid;
+      
+      // Actualizar: Solo el autor de la respuesta puede actualizarla
+      // O el autor de la pregunta para aceptar la respuesta
+      allow update: if isAuthenticated() && (
+        resource.data.authorId == request.auth.uid ||
+        (request.resource.data.isAccepted != resource.data.isAccepted &&
+         request.resource.data.isAccepted == true &&
+         exists(/databases/$(database)/documents/forumQuestions/$(resource.data.questionId)) &&
+         get(/databases/$(database)/documents/forumQuestions/$(resource.data.questionId)).data.authorId == request.auth.uid)
+      );
+      
+      // Eliminar: Solo el autor de la respuesta puede eliminarla
+      allow delete: if isAuthenticated() && 
+        resource.data.authorId == request.auth.uid;
+    }
+    
+    // ===================
     // COLECCIÓN: study_plans (Smart Study Planner)
     // ===================
     match /study_plans/{planId} {

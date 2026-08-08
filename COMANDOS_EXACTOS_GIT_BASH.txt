@@ -1,0 +1,62 @@
+═══════════════════════════════════════════════════════════════
+  COMANDOS EXACTOS PARA TU REPOSITORIO
+═══════════════════════════════════════════════════════════════
+
+Tu repositorio: https://github.com/c10andres/TutorApp.git
+
+───────────────────────────────────────────────────────────────
+EJECUTA ESTOS COMANDOS EN GIT BASH (EN ORDEN):
+───────────────────────────────────────────────────────────────
+
+1. NAVEGAR AL PROYECTO:
+───────────────────────────────────────────────────────────────
+cd "/c/Users/carlo/Downloads/TutorApp (18)"
+
+───────────────────────────────────────────────────────────────
+2. CONFIGURAR GIT (Solo primera vez):
+───────────────────────────────────────────────────────────────
+git config --global user.name "c10andres"
+git config --global user.email "tu-email@ejemplo.com"
+
+───────────────────────────────────────────────────────────────
+3. INICIALIZAR GIT:
+───────────────────────────────────────────────────────────────
+git init
+
+───────────────────────────────────────────────────────────────
+4. AGREGAR ARCHIVOS:
+───────────────────────────────────────────────────────────────
+git add .
+
+───────────────────────────────────────────────────────────────
+5. HACER COMMIT:
+───────────────────────────────────────────────────────────────
+git commit -m "Initial commit - TutorApp Colombia"
+
+───────────────────────────────────────────────────────────────
+6. CONECTAR CON TU REPOSITORIO:
+───────────────────────────────────────────────────────────────
+git remote add origin https://github.com/c10andres/TutorApp.git
+git branch -M main
+
+───────────────────────────────────────────────────────────────
+7. SUBIR CÓDIGO:
+───────────────────────────────────────────────────────────────
+git push -u origin main
+
+# Cuando pida contraseña, usa tu Personal Access Token
+# (NO tu contraseña normal de GitHub)
+
+═══════════════════════════════════════════════════════════════
+  IMPORTANTE: Personal Access Token
+═══════════════════════════════════════════════════════════════
+
+Si aún no tienes el token:
+1. Ve a: https://github.com/settings/tokens
+2. Generate new token (classic)
+3. Marca "repo" en permisos
+4. Copia el token
+5. Úsalo como contraseña cuando Git lo pida
+
+═══════════════════════════════════════════════════════════════
+

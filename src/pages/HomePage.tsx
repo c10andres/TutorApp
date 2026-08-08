@@ -49,7 +49,8 @@ import {
   CalendarCheck,
   Zap,
   Target,
-  HelpCircle
+  HelpCircle,
+  Activity
 } from 'lucide-react';
 
 interface HomePageProps {
@@ -914,6 +915,32 @@ export function HomePage({ onNavigate }: HomePageProps) {
         loadData={loadData}
         createTestRequest={createTestRequest}
       />
+
+      {/* Botón para ver análisis de encuesta e interacciones - Solo para usuarios maestros */}
+      {isTestUser(user) && (
+        <Card className="mb-4">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-blue-600" />
+                  Análisis de Encuesta e Interacciones
+                </h3>
+                <p className="text-sm text-gray-600">
+                  Visualiza las 150 respuestas de la encuesta y las interacciones generadas
+                </p>
+              </div>
+              <Button
+                onClick={() => onNavigate('survey-analytics')}
+                className="ml-4"
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Ver Estadísticas
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
       
       {/* Componentes de diagnóstico ocultos - Solo funcionalidad, no UI */}
       {false && (

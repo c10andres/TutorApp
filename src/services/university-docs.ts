@@ -9,7 +9,10 @@ import {
   addDoc, 
   deleteDoc,
   where,
-  Timestamp
+  Timestamp,
+  increment,
+  onSnapshot,
+  setDoc
 } from 'firebase/firestore';
 import { 
   ref, 
@@ -32,7 +35,6 @@ export interface FirebaseDocument {
   fileUrl: string;
   fileSize: number;
   tags: string[];
-  downloadCount: number;
   version: string;
   author: string;
   department: string;
@@ -45,6 +47,7 @@ export interface FirebaseDocument {
 export const universityDocsService = {
   /**
    * Obtener todos los documentos (desde Firebase o carpeta local)
+   * Los documentos son exactamente iguales para todos los usuarios
    */
   async getAllDocuments(): Promise<FirebaseDocument[]> {
     // Siempre intentar cargar desde carpeta local primero (más confiable)
@@ -118,7 +121,8 @@ export const universityDocsService = {
       }
     } catch (error: any) {
       console.error('❌ [getAllDocuments] Error obteniendo documentos de Firebase:', error);
-      console.log('📁 [getAllDocuments] Retornando documentos locales o array vacío');
+      console.log('📁 [getAllDocuments] Retornando documentos locales');
+      
       return localDocs;
     }
   },
@@ -173,7 +177,6 @@ export const universityDocsService = {
           fileUrl: `/documents/${doc.fileName}`,
           fileSize: doc.fileSize,
           tags: doc.tags || [],
-          downloadCount: doc.downloadCount || 0,
           version: doc.version,
           author: doc.author,
           department: doc.department,
@@ -221,7 +224,7 @@ export const universityDocsService = {
   async uploadDocument(
     file: File,
     userId: string,
-    metadata: Omit<FirebaseDocument, 'id' | 'fileUrl' | 'fileSize' | 'storagePath' | 'fileName' | 'uploadedAt' | 'publishDate' | 'lastModified' | 'downloadCount'>
+    metadata: Omit<FirebaseDocument, 'id' | 'fileUrl' | 'fileSize' | 'storagePath' | 'fileName' | 'uploadedAt' | 'publishDate' | 'lastModified'>
   ): Promise<string> {
     try {
       console.log('📤 [uploadDocument] Iniciando subida...');
@@ -275,7 +278,6 @@ export const universityDocsService = {
         storagePath,
         fileName: file.name,
         uploadedBy: userId,
-        downloadCount: 0,
         publishDate: Timestamp.now(),
         lastModified: Timestamp.now(),
         uploadedAt: Timestamp.now(),
@@ -293,32 +295,10 @@ export const universityDocsService = {
   },
 
   /**
-   * Incrementar contador de descargas
-   */
-  async incrementDownloadCount(id: string): Promise<void> {
-    const docRef = doc(db, 'universityDocs', id);
-    const docSnap = await getDoc(docRef);
-    const currentCount = docSnap.data()?.downloadCount || 0;
-    await updateDoc(docRef, { 
-      downloadCount: currentCount + 1,
-      lastModified: Timestamp.now()
-    });
-  },
-
-  /**
    * Descargar documento
    */
   async downloadDocument(document: FirebaseDocument): Promise<void> {
     try {
-      // Incrementar contador (solo si está en Firebase)
-      if (!document.storagePath?.startsWith('local/')) {
-        try {
-          await this.incrementDownloadCount(document.id);
-        } catch (e) {
-          console.log('⚠️ No se pudo incrementar contador (documento local)');
-        }
-      }
-      
       // Obtener URL de descarga
       let url: string;
       if (document.storagePath?.startsWith('local/')) {

@@ -4,13 +4,13 @@ import { User } from '../types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  Star, 
-  MapPin, 
-  DollarSign, 
-  Clock, 
-  BookOpen, 
-  MessageCircle, 
+import {
+  Star,
+  MapPin,
+  DollarSign,
+  Clock,
+  BookOpen,
+  MessageCircle,
   ArrowLeft,
   CheckCircle,
   XCircle,
@@ -27,6 +27,8 @@ interface Tutor {
   rating: number;
   totalReviews: number;
   hourlyRate: number;
+  hourlyPoints?: number;
+  rank?: string;
   location: string;
   bio: string;
   subjects: string[];
@@ -57,7 +59,7 @@ export default function TutorProfilePage({ onNavigate, tutor, tutorId }: TutorPr
   useEffect(() => {
     const loadTutorProfile = async () => {
       setLoading(true);
-      
+
       if (tutor) {
         // Usar los datos reales del tutor
         const enhancedTutorData: Tutor = {
@@ -68,6 +70,8 @@ export default function TutorProfilePage({ onNavigate, tutor, tutorId }: TutorPr
           rating: tutor.rating,
           totalReviews: tutor.totalReviews,
           hourlyRate: tutor.hourlyRate,
+          hourlyPoints: tutor.hourlyPoints,
+          rank: tutor.rank,
           location: tutor.location || '',
           bio: tutor.bio || '',
           subjects: tutor.subjects,
@@ -152,9 +156,9 @@ export default function TutorProfilePage({ onNavigate, tutor, tutorId }: TutorPr
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header con botón de regreso */}
         <div className="flex items-center gap-4 mb-6">
-          <Button 
-            onClick={() => onNavigate('search')} 
-            variant="outline" 
+          <Button
+            onClick={() => onNavigate('search')}
+            variant="outline"
             size="sm"
             className="flex items-center gap-2"
           >
@@ -176,7 +180,7 @@ export default function TutorProfilePage({ onNavigate, tutor, tutorId }: TutorPr
                     {tutorData.name.split(' ').map(n => n[0]).join('').toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-4 mb-2">
                     <div>
@@ -205,18 +209,27 @@ export default function TutorProfilePage({ onNavigate, tutor, tutorId }: TutorPr
                     </div>
                   )}
 
-                  {/* Precio por hora */}
-                  <div className="flex items-center gap-2 mb-4">
-                    <DollarSign className="size-4 text-gray-400" />
-                    <span className="text-xl font-bold text-green-600">
-                      {formatPriceCOP(tutorData.hourlyRate)}/hora
-                    </span>
+                  {/* Puntos y Rango */}
+                  <div className="flex flex-col gap-2 mb-4">
+                    <div className="flex items-center gap-2">
+                      <Award className="size-5 text-blue-600" />
+                      <span className="text-xl font-bold text-blue-700">
+                        {tutorData.hourlyPoints || 10} PM <span className="text-sm font-normal text-gray-500">/hora</span>
+                      </span>
+                    </div>
+                    {tutorData.rank && (
+                      <div className="flex">
+                        <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border-yellow-200">
+                          {tutorData.rank}
+                        </Badge>
+                      </div>
+                    )}
                   </div>
 
                   {/* Botones de acción */}
                   <div className="flex flex-col sm:flex-row gap-3">
-                    <Button 
-                      size="lg" 
+                    <Button
+                      size="lg"
                       className="flex-1"
                       onClick={() => onNavigate('request-tutoring', { tutor: tutorData })}
                     >

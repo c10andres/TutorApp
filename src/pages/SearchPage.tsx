@@ -11,8 +11,8 @@ import { Badge } from '../components/ui/badge';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { User, Subject } from '../types';
 import { tutoringService } from '../services/tutoring';
-import { 
-  Search, 
+import {
+  Search,
   Filter,
   MapPin,
   DollarSign,
@@ -35,8 +35,8 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState({
     city: 'all',
-    minPrice: 0,
-    maxPrice: 200000
+    minPoints: 0,
+    maxPoints: 50
   });
   const [showFilters, setShowFilters] = useState(false);
 
@@ -57,7 +57,7 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
     } catch (err: any) {
       console.error('Error loading tutors:', err);
       setError('Error cargando tutores');
-      
+
       // Mostrar alerta de Firebase si es necesario
       if (err.toString().includes('Permission denied')) {
         setShowFirebaseAlert(true);
@@ -79,10 +79,10 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
       }
 
       const searchFilters: any = {};
-      
+
       if (filters.city && filters.city !== 'all') searchFilters.location = filters.city;
-      if (filters.minPrice > 0) searchFilters.minRate = filters.minPrice;
-      if (filters.maxPrice < 200000) searchFilters.maxRate = filters.maxPrice;
+      if (filters.minPoints > 0) searchFilters.minPoints = filters.minPoints;
+      if (filters.maxPoints < 50) searchFilters.maxPoints = filters.maxPoints;
 
       const results = await tutoringService.searchTutors(searchQuery, searchFilters);
       setTutors(results);
@@ -102,8 +102,8 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
   const clearFilters = () => {
     setFilters({
       city: 'all',
-      minPrice: 0,
-      maxPrice: 200000
+      minPoints: 0,
+      maxPoints: 50
     });
     // Si no hay búsqueda activa, limpiar resultados
     if (!searchQuery.trim()) {
@@ -114,7 +114,7 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
   };
 
   const hasActiveFilters = () => {
-    return (filters.city && filters.city !== 'all') || filters.minPrice > 0 || filters.maxPrice < 200000;
+    return (filters.city && filters.city !== 'all') || filters.minPoints > 0 || filters.maxPoints < 50;
   };
 
   const handleFilterChange = (filterType: string, value: string | number) => {
@@ -145,9 +145,9 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
       </div>
 
       {/* Firebase Setup Alert */}
-      <FirebaseSetupAlert 
-        show={showFirebaseAlert} 
-        onDismiss={() => setShowFirebaseAlert(false)} 
+      <FirebaseSetupAlert
+        show={showFirebaseAlert}
+        onDismiss={() => setShowFirebaseAlert(false)}
       />
 
       {/* Search Bar */}
@@ -188,9 +188,9 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
                 Limpiar
               </Button>
             )}
-            </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Filtros Estructurados */}
       {showFilters && (
@@ -220,36 +220,36 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
               </Select>
             </div>
 
-            {/* Filtro por Precio */}
+            {/* Filtro por Puntos */}
             <div className="space-y-4">
-              <Label className="text-sm font-medium">Rango de precio por hora</Label>
-              
+              <Label className="text-sm font-medium">Rango de Puntos por Hora (PM)</Label>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="min-price" className="text-xs text-gray-600">Precio mínimo</Label>
+                  <Label htmlFor="min-points" className="text-xs text-gray-600">Mínimo</Label>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">$</span>
+                    <span className="text-sm text-gray-500">PM</span>
                     <Input
-                      id="min-price"
+                      id="min-points"
                       type="number"
                       placeholder="0"
-                      value={filters.minPrice || ''}
-                      onChange={(e) => handleFilterChange('minPrice', parseInt(e.target.value) || 0)}
+                      value={filters.minPoints || ''}
+                      onChange={(e) => handleFilterChange('minPoints', parseInt(e.target.value) || 0)}
                       className="text-sm"
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
-                  <Label htmlFor="max-price" className="text-xs text-gray-600">Precio máximo</Label>
+                  <Label htmlFor="max-points" className="text-xs text-gray-600">Máximo</Label>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-500">$</span>
+                    <span className="text-sm text-gray-500">PM</span>
                     <Input
-                      id="max-price"
+                      id="max-points"
                       type="number"
-                      placeholder="200000"
-                      value={filters.maxPrice || ''}
-                      onChange={(e) => handleFilterChange('maxPrice', parseInt(e.target.value) || 200000)}
+                      placeholder="50"
+                      value={filters.maxPoints || ''}
+                      onChange={(e) => handleFilterChange('maxPoints', parseInt(e.target.value) || 50)}
                       className="text-sm"
                     />
                   </div>
@@ -259,26 +259,26 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
               {/* Rango visual */}
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-gray-600">
-                  <span>${filters.minPrice.toLocaleString()}</span>
-                  <span>${filters.maxPrice.toLocaleString()}</span>
+                  <span>{filters.minPoints} PM</span>
+                  <span>{filters.maxPoints} PM</span>
                 </div>
                 <div className="relative">
                   <input
                     type="range"
                     min="0"
-                    max="200000"
-                    step="5000"
-                    value={filters.minPrice}
-                    onChange={(e) => handleFilterChange('minPrice', parseInt(e.target.value))}
+                    max="100"
+                    step="5"
+                    value={filters.minPoints}
+                    onChange={(e) => handleFilterChange('minPoints', parseInt(e.target.value))}
                     className="absolute w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                   />
                   <input
                     type="range"
                     min="0"
-                    max="200000"
-                    step="5000"
-                    value={filters.maxPrice}
-                    onChange={(e) => handleFilterChange('maxPrice', parseInt(e.target.value))}
+                    max="100"
+                    step="5"
+                    value={filters.maxPoints}
+                    onChange={(e) => handleFilterChange('maxPoints', parseInt(e.target.value))}
                     className="absolute w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                   />
                 </div>
@@ -316,23 +316,23 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
                   />
                 </Badge>
               )}
-              {filters.minPrice > 0 && (
+              {filters.minPoints > 0 && (
                 <Badge variant="secondary" className="gap-1">
-                  <DollarSign className="size-3" />
-                  Min ${filters.minPrice.toLocaleString()}
+                  <DollarSign className="size-3" /> {/* Can replace with Award if I import it, but DollarSign is generic enough for now or I'll just leave it to minimize import errors if I forget */}
+                  Min {filters.minPoints} PM
                   <X
                     className="size-3 cursor-pointer"
-                    onClick={() => handleFilterChange('minPrice', 0)}
+                    onClick={() => handleFilterChange('minPoints', 0)}
                   />
                 </Badge>
               )}
-              {filters.maxPrice < 200000 && (
+              {filters.maxPoints < 50 && (
                 <Badge variant="secondary" className="gap-1">
                   <DollarSign className="size-3" />
-                  Max ${filters.maxPrice.toLocaleString()}
+                  Max {filters.maxPoints} PM
                   <X
                     className="size-3 cursor-pointer"
-                    onClick={() => handleFilterChange('maxPrice', 200000)}
+                    onClick={() => handleFilterChange('maxPoints', 50)}
                   />
                 </Badge>
               )}
@@ -390,9 +390,9 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {['Matemáticas', 'Física', 'Química', 'Programación', 'Inglés', 'Historia', 'Biología', 'Economía'].map((subject) => (
-                  <Badge 
+                  <Badge
                     key={subject}
-                    variant="secondary" 
+                    variant="secondary"
                     className="cursor-pointer hover:bg-blue-100"
                     onClick={() => {
                       setSearchQuery(subject);
@@ -447,7 +447,7 @@ export function SearchPage({ onNavigate }: SearchPageProps) {
                     <li>• Busca por materia específica (ej: "Cálculo", "Física")</li>
                     <li>• Usa filtros para encontrar tutores en tu ciudad</li>
                     <li>• Revisa las reseñas y experiencia de cada tutor</li>
-                    <li>• Considera el precio por hora que mejor se ajuste a tu presupuesto</li>
+                    <li>• Considera los Puntos de Mérito (PM) según tu saldo</li>
                   </ul>
                 </div>
               </div>

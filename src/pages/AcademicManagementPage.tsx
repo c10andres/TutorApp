@@ -1,5 +1,5 @@
 // Página de gestión académica con sistema de semestres
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -18,7 +18,7 @@ import { academicFirebaseService, FirebaseSemester, FirebaseSubject, FirebaseAca
 import { formatDate, formatNumber } from '../utils/formatters';
 import { getFirebaseDatabase } from '../firebase';
 import { ref, get } from 'firebase/database';
-import { 
+import {
   GraduationCap,
   BookOpen,
   Calendar as CalendarIcon,
@@ -42,8 +42,10 @@ import {
   Star,
   Loader2,
   RefreshCw,
-  Play
+  Play,
+  Search
 } from 'lucide-react';
+import { parseSubjectsCsv, UniversitySubject } from '../services/subjectParser';
 
 interface AcademicManagementPageProps {
   onNavigate: (page: string, data?: any) => void;
@@ -67,7 +69,13 @@ interface AcademicCut {
   percentage: number;
   grade: number | null;
   description?: string;
+  createdAt: any;
+  updatedAt: any;
 }
+
+// ... existing code ...
+
+
 
 interface Subject {
   id: string;
@@ -77,6 +85,22 @@ interface Subject {
   status: 'passed' | 'current' | 'pending' | 'failed';
   semesterName?: string;
   cuts: AcademicCut[];
+  createdAt?: any;
+  updatedAt?: any;
+  // Extended fields from CSV
+  code?: string;
+  group?: string;
+  professor?: string;
+  schedule?: string;
+  location?: string;
+  scheduleBlocks?: any[];
+  day?: string;
+  time?: string;
+  building?: string;
+  room?: string;
+  sede?: string;
+  project?: string;
+  faculty?: string;
 }
 
 interface Goal {
@@ -106,15 +130,56 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const [periods, setPeriods] = useState<AcademicPeriod[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [currentSemester, setCurrentSemester] = useState<FirebaseSemester | null>(null);
-  const [newSubject, setNewSubject] = useState({ name: '', credits: 0, semesterId: '' });
+  const [newSubject, setNewSubject] = useState<{
+    name: string;
+    credits: number;
+    semesterId: string;
+    code?: string;
+    group?: string;
+    professor?: string;
+    scheduleBlocks?: any[];
+    location?: string;
+    schedule?: string;
+    project?: string;
+    faculty?: string;
+  }>({ name: '', credits: 0, semesterId: '' });
   const [showAddSubjectDialog, setShowAddSubjectDialog] = useState(false);
+  const [isCatalogSelected, setIsCatalogSelected] = useState(false);
+
+  // Estados para Materias.csv
+  const [universitySubjects, setUniversitySubjects] = useState<UniversitySubject[]>([]);
+  const [subjectSuggestions, setSubjectSuggestions] = useState<UniversitySubject[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<UniversitySubject[]>([]);
+
+  // Computar listas únicas para desplegables con filtrado dependiente
+  const uniqueFaculties = useMemo(() => {
+    let filteredSubjects = universitySubjects;
+    // Si hay un proyecto seleccionado, mostrar solo facultades asociadas
+    if (newSubject.project) {
+      filteredSubjects = universitySubjects.filter(s => s.project === newSubject.project);
+    }
+    const faculties = new Set(filteredSubjects.map(s => s.faculty).filter(Boolean));
+    return Array.from(faculties).sort();
+  }, [universitySubjects, newSubject.project]);
+
+  const uniqueProjects = useMemo(() => {
+    let filteredSubjects = universitySubjects;
+    // Si hay una facultad seleccionada, mostrar solo proyectos de esa facultad
+    if (newSubject.faculty) {
+      filteredSubjects = universitySubjects.filter(s => s.faculty === newSubject.faculty);
+    }
+    const projects = new Set(filteredSubjects.map(s => s.project).filter(Boolean));
+    return Array.from(projects).sort();
+  }, [universitySubjects, newSubject.faculty]);
+
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [newSemester, setNewSemester] = useState({ name: '', year: new Date().getFullYear(), period: 1 });
   const [showAddSemesterDialog, setShowAddSemesterDialog] = useState(false);
   const [editingSemester, setEditingSemester] = useState<AcademicPeriod | null>(null);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
   const [deletingSemester, setDeletingSemester] = useState<AcademicPeriod | null>(null);
   const [deletingSubject, setDeletingSubject] = useState<Subject | null>(null);
-  
+
   // Estados para cortes académicos
   const [showAddCutDialog, setShowAddCutDialog] = useState(false);
   const [selectedSubjectForCut, setSelectedSubjectForCut] = useState<Subject | null>(null);
@@ -122,7 +187,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const [editingCut, setEditingCut] = useState<AcademicCut | null>(null);
   const [processingCut, setProcessingCut] = useState<string | null>(null);
   const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set());
-  
+
   // Estados para edición de metas
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [showEditGoalDialog, setShowEditGoalDialog] = useState(false);
@@ -132,14 +197,147 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   useEffect(() => {
     // Cargar datos académicos del usuario
     loadAcademicData();
+    // Cargar materias del CSV
+    loadUniversitySubjects();
   }, []);
+
+  const loadUniversitySubjects = async () => {
+    try {
+      console.log('📚 Cargando catálogo de materias...');
+      const response = await fetch('/Materias.csv');
+      const text = await response.text();
+      const parsedSubjects = parseSubjectsCsv(text);
+      console.log(`✅ ${parsedSubjects.length} materias cargadas del catálogo`);
+      setUniversitySubjects(parsedSubjects); // Guardamos todas las materias
+
+      // Log para verificar el contenido
+      if (parsedSubjects.length > 0) {
+        console.log('Ejemplo de materia:', parsedSubjects[0]);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando Materias.csv:', error);
+    }
+  };
+
+  const handleSubjectSearch = (query: string) => {
+    // Si el usuario escribe manualmente, limpiamos los campos extendidos y desbloqueamos el código
+    setNewSubject(prev => ({
+      ...prev,
+      name: query,
+      // Solo limpiar si estaba seleccionado del catálogo antes
+      ...(isCatalogSelected ? {
+        code: '',
+        group: '',
+        professor: '',
+        scheduleBlocks: undefined,
+        location: undefined
+      } : {})
+    }));
+
+    if (isCatalogSelected) {
+      setIsCatalogSelected(false);
+      setAvailableGroups([]); // Resetear grupos si se rompe la selección del catálogo
+    }
+
+    if (!query || query.length < 2) {
+      setSubjectSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const searchTerm = query.toLowerCase();
+
+    // Filtrar materias y eliminar duplicados (misma materia, mismo código)
+    // Usamos un Map para asegurar unicidad por nombre
+    const uniqueMatches = new Map();
+
+    universitySubjects.forEach(subject => {
+      if (subject.name.toLowerCase().includes(searchTerm) ||
+        subject.code.toLowerCase().includes(searchTerm)) {
+        // Usar nombre como clave para eliminar duplicados visuales en la sugerencia
+        if (!uniqueMatches.has(subject.name)) {
+          uniqueMatches.set(subject.name, subject);
+        }
+      }
+    });
+
+    const matches = Array.from(uniqueMatches.values()).slice(0, 10);
+    setSubjectSuggestions(matches);
+    setShowSuggestions(matches.length > 0);
+  };
+
+  const selectSubjectSuggestion = (subject: UniversitySubject) => {
+    console.log('Materia seleccionada:', subject);
+    setIsCatalogSelected(true);
+
+    // Buscar todos los grupos disponibles para esta materia (basado en nombre exacto)
+    let potentialGroups = universitySubjects.filter(s => s.name === subject.name);
+
+    // Si YA hay una facultad seleccionada, filtrar los grupos por esa facultad
+    if (newSubject.faculty) {
+      const groupsInFaculty = potentialGroups.filter(s => s.faculty === newSubject.faculty);
+      if (groupsInFaculty.length > 0) {
+        potentialGroups = groupsInFaculty;
+      }
+      // Nota: Si no hay grupos en esa facultad, mostramos todos para no bloquear al usuario,
+      // o podríamos mostrar 0 grupos. Por ahora mostramos todos si el filtro falla.
+    }
+
+    const groups = potentialGroups.sort((a, b) => {
+      const groupA = parseInt(a.group) || 0;
+      const groupB = parseInt(b.group) || 0;
+      if (groupA && groupB) return groupA - groupB;
+      return a.group.localeCompare(b.group);
+    });
+
+    setAvailableGroups(groups);
+    console.log(`Grupos encontrados para ${subject.name}: ${groups.length}`);
+
+    setNewSubject(prev => ({
+      ...prev,
+      name: subject.name,
+      credits: 3, // Por defecto 3
+      code: subject.code,
+      // No seleccionamos grupo automáticamente para obligar al usuario a elegir
+      group: '',
+      professor: '',
+      scheduleBlocks: undefined,
+      location: undefined,
+      schedule: undefined,
+      // Mantener facultad/proyecto si ya estaban seleccionados, si no, usar los de la materia (del primer grupo encontrado)
+      project: prev.project || subject.project,
+      faculty: prev.faculty || subject.faculty
+    }));
+    setShowSuggestions(false);
+  };
+
+  const handleGroupChange = (groupId: string) => {
+    // groupId será el grupo (string). Como ahora la key del parser es única
+    // necesitamos encontrar el grupo específico en availableGroups
+    const selectedGroupSubject = availableGroups.find(s => s.group === groupId);
+
+    if (selectedGroupSubject) {
+      setNewSubject(prev => ({
+        ...prev,
+        code: selectedGroupSubject.code,
+        group: selectedGroupSubject.group,
+        professor: selectedGroupSubject.professor,
+        scheduleBlocks: selectedGroupSubject.scheduleBlocks,
+        location: selectedGroupSubject.location,
+        schedule: selectedGroupSubject.schedule,
+        // Al seleccionar grupo concreto, actualizamos proyecto y facultad si difieren
+        project: selectedGroupSubject.project,
+        faculty: selectedGroupSubject.faculty
+      }));
+    }
+  };
 
   const loadAcademicData = async () => {
     try {
       setLoading(true);
       setError('');
       console.log('🔍 Cargando datos académicos desde Firebase para:', user?.id);
-      
+
       if (!user) {
         throw new Error('Usuario no autenticado');
       }
@@ -149,7 +347,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         academicFirebaseService.getUserSemesters(user.id),
         academicFirebaseService.getUserGoals(user.id)
       ]);
-      
+
       console.log('📊 Datos cargados desde Firebase:', {
         semestersCount: firebaseSemesters.length,
         goalsCount: firebaseGoals.length,
@@ -163,26 +361,26 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
           name: semester.name,
           startDate: new Date(semester.startDate),
           endDate: new Date(semester.endDate),
-          status: semester.status === 'Completado' ? 'completed' : 
-                  semester.status === 'En Curso' ? 'current' : 'planned',
+          status: semester.status === 'Completado' ? 'completed' :
+            semester.status === 'En Curso' ? 'current' : 'planned',
           credits: semester.subjects.reduce((sum, sub) => sum + sub.credits, 0),
           gpa: semester.gpa || null,
           isActive: semester.isActive || false
         }));
-        
+
         // Ordenar semestres: activo primero, luego por fecha de creación
         const sortedPeriods = processedPeriods.sort((a, b) => {
           if (a.isActive && !b.isActive) return -1;
           if (!a.isActive && b.isActive) return 1;
           return 0;
         });
-        
+
         setPeriods(sortedPeriods);
-        
+
         // Encontrar semestre actual - solo el primero si hay múltiples activos
         const activeSemesters = firebaseSemesters.filter(s => s.isActive);
         let activeSemester = null;
-        
+
         if (activeSemesters.length > 1) {
           // Si hay múltiples activos, desactivar todos excepto el primero
           console.log('⚠️ Múltiples semestres activos encontrados:', activeSemesters.length);
@@ -196,29 +394,39 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         } else if (activeSemesters.length === 1) {
           activeSemester = activeSemesters[0];
         }
-        
+
         if (activeSemester) {
           setCurrentSemester(activeSemester);
-          
+
           // Procesar materias del semestre actual
           const processedSubjects: Subject[] = activeSemester.subjects.map(subject => {
             console.log('📚 Procesando materia:', subject.name, 'con cortes:', subject.cuts ? subject.cuts.length : 0);
             if (subject.cuts && subject.cuts.length > 0) {
               console.log('✂️ Cortes de la materia', subject.name, ':', subject.cuts.map(cut => cut.title));
             }
-            
+
             return {
               id: subject.id,
               name: subject.name,
               credits: subject.credits,
               grade: subject.finalGrade || null,
-              status: subject.status === 'Aprobada' ? 'passed' : 
-                     subject.status === 'En Curso' ? 'current' : 
-                     subject.status === 'Reprobada' ? 'failed' : 'pending',
-              cuts: subject.cuts || []
+              status: subject.status === 'Aprobada' ? 'passed' :
+                subject.status === 'En Curso' ? 'current' :
+                  subject.status === 'Reprobada' ? 'failed' : 'pending',
+              cuts: subject.cuts || [],
+              code: subject.code,
+              group: subject.group,
+              professor: subject.professor,
+              scheduleBlocks: subject.scheduleBlocks,
+              location: subject.location,
+              day: subject.day,
+              time: subject.time,
+              building: subject.building,
+              room: subject.room,
+              sede: subject.sede,
             };
           });
-          
+
           setSubjects(processedSubjects);
         } else {
           // No hay semestre activo, limpiar datos
@@ -232,7 +440,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         setCurrentSemester(null);
         setSubjects([]);
       }
-      
+
       // No establecer automáticamente un semestre como actual
       // El usuario debe activar manualmente el semestre que desee
 
@@ -245,11 +453,11 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         progress: goal.progress,
         status: goal.status as 'pending' | 'on-track' | 'completed' | 'overdue'
       }));
-      
+
       setGoals(processedGoals);
 
       console.log('✅ Datos académicos cargados exitosamente desde Firebase');
-      
+
       // Log detallado de cortes cargados
       const totalCuts = subjects.reduce((sum, subject) => sum + (subject.cuts ? subject.cuts.length : 0), 0);
       console.log('✂️ Total de cortes cargados en componente:', totalCuts);
@@ -260,7 +468,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
           console.log('📚 Materia', subject.name, 'NO tiene cortes');
         }
       });
-      
+
     } catch (error) {
       console.error('❌ Error cargando datos académicos:', error);
       // No mostrar error si es problema de conexión, solo log
@@ -275,13 +483,13 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
 
     try {
       console.log('🎯 Agregando nueva meta:', newGoal);
-      
+
       // Crear meta en Firebase
       const firebaseGoal = await academicFirebaseService.createGoal(user.id, {
-      title: newGoal.title,
-      description: newGoal.description,
-      targetDate: newGoal.targetDate,
-      progress: 0,
+        title: newGoal.title,
+        description: newGoal.description,
+        targetDate: newGoal.targetDate,
+        progress: 0,
         status: 'pending',
         category: newGoal.category as 'academic' | 'personal' | 'career'
       });
@@ -295,13 +503,13 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         progress: firebaseGoal.progress,
         status: firebaseGoal.status as 'pending' | 'on-track' | 'completed' | 'overdue'
       };
-      
+
       setGoals(prev => [...prev, goalToAdd]);
-      
+
       console.log('✅ Meta agregada en Firebase:', firebaseGoal.id);
-      
-    setNewGoal({ title: '', description: '', targetDate: '', category: 'academic' });
-    setShowAddGoalDialog(false);
+
+      setNewGoal({ title: '', description: '', targetDate: '', category: 'academic' });
+      setShowAddGoalDialog(false);
     } catch (error) {
       console.error('❌ Error agregando meta:', error);
       setError('Error al agregar la meta en Firebase');
@@ -321,12 +529,12 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
     if (!editingGoal || !user) return;
 
     try {
-      console.log('🎯 Actualizando progreso de meta:', { 
-        goalId: editingGoal.id, 
-        progress: goalProgress, 
-        status: goalStatus 
+      console.log('🎯 Actualizando progreso de meta:', {
+        goalId: editingGoal.id,
+        progress: goalProgress,
+        status: goalStatus
       });
-      
+
       // Actualizar en Firebase
       await academicFirebaseService.updateGoal(editingGoal.id, {
         progress: goalProgress,
@@ -334,14 +542,14 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
       });
 
       // Actualizar estado local
-      setGoals(prev => prev.map(goal => 
-        goal.id === editingGoal.id 
+      setGoals(prev => prev.map(goal =>
+        goal.id === editingGoal.id
           ? { ...goal, progress: goalProgress, status: goalStatus }
           : goal
       ));
-      
+
       console.log('✅ Progreso de meta actualizado en Firebase');
-      
+
       setShowEditGoalDialog(false);
       setEditingGoal(null);
     } catch (error) {
@@ -354,7 +562,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleUpdateGrade = async (subjectId: string, newGrade: number) => {
     try {
       console.log('📝 Actualizando nota en Firebase:', { subjectId, newGrade });
-      
+
       if (!currentSemester) {
         throw new Error('No hay semestre actual');
       }
@@ -364,16 +572,16 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         finalGrade: newGrade,
         status: newGrade >= 3.0 ? 'Aprobada' : 'Reprobada'
       });
-      
+
       // Actualizar estado local
-      setSubjects(prev => prev.map(subject => 
-        subject.id === subjectId 
+      setSubjects(prev => prev.map(subject =>
+        subject.id === subjectId
           ? { ...subject, grade: newGrade, status: newGrade >= 3.0 ? 'passed' : 'failed' }
           : subject
       ));
-      
+
       console.log('✅ Nota actualizada en Firebase');
-      
+
     } catch (error) {
       console.error('❌ Error actualizando nota:', error);
       setError('Error al actualizar la nota en Firebase');
@@ -381,47 +589,72 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   };
 
   // Agregar nueva materia
-  const handleAddSubject = async (subjectData: { name: string; credits: number; semesterId: string }) => {
+  // Agregar nueva materia
+  const handleAddSubject = async () => {
     try {
-      console.log('➕ Agregando materia en Firebase:', subjectData);
-      
-      if (!subjectData.semesterId) {
+      console.log('➕ Agregando materia en Firebase:', newSubject);
+
+      if (!newSubject.semesterId) {
         throw new Error('Debes seleccionar un semestre');
       }
 
       // Crear materia en Firebase
-      const firebaseSubject = await academicFirebaseService.addSubjectToSemester(subjectData.semesterId, {
-        name: subjectData.name,
-        credits: subjectData.credits,
-        status: 'En Curso'
+      const firebaseSubject = await academicFirebaseService.addSubjectToSemester(newSubject.semesterId, {
+        name: newSubject.name,
+        credits: newSubject.credits,
+        status: 'En Curso',
+        code: newSubject.code,
+        group: newSubject.group,
+        professor: newSubject.professor,
+        scheduleBlocks: newSubject.scheduleBlocks,
+        // Map first block info for backward compatibility/simplified view if needed
+        day: newSubject.scheduleBlocks?.[0]?.day,
+        time: newSubject.scheduleBlocks?.[0]?.time,
+        building: newSubject.scheduleBlocks?.[0]?.building,
+        room: newSubject.scheduleBlocks?.[0]?.room,
+        sede: newSubject.scheduleBlocks?.[0]?.sede,
+        location: newSubject.location,
+        project: newSubject.project,
+        faculty: newSubject.faculty
       });
-      
+
       // Actualizar estado local
-      const newSubject: Subject = {
+      const addedSubject: Subject = {
         id: firebaseSubject.id,
         name: firebaseSubject.name,
         credits: firebaseSubject.credits,
         grade: null,
         status: 'current',
-        cuts: firebaseSubject.cuts || []
+        cuts: firebaseSubject.cuts || [],
+        createdAt: firebaseSubject.createdAt,
+        updatedAt: firebaseSubject.updatedAt,
+        // Extended fields
+        code: firebaseSubject.code,
+        group: firebaseSubject.group,
+        professor: firebaseSubject.professor,
+        scheduleBlocks: firebaseSubject.scheduleBlocks,
+        location: firebaseSubject.location,
+        schedule: newSubject.schedule, // Keep string rep if available or undefined
+        project: firebaseSubject.project,
+        faculty: firebaseSubject.faculty
       };
-      
-      setSubjects(prev => [...prev, newSubject]);
-      
+
+      setSubjects(prev => [...prev, addedSubject]);
+
       console.log('✅ Materia agregada en Firebase:', firebaseSubject.id);
-      
+
       // Cerrar el diálogo actual
       setShowAddSubjectDialog(false);
-      
+
       // Mostrar notificación de confirmación
-      const addAnother = window.confirm('✅ Materia agregada exitosamente.\n\n¿Deseas agregar otra materia?');
-      
-      if (addAnother) {
-        // Limpiar el formulario y abrir el diálogo para agregar otra materia
-        setNewSubject({ name: '', credits: 0, semesterId: subjectData.semesterId });
-        setShowAddSubjectDialog(true);
-      }
-      
+      window.alert('Materia agregada con éxito');
+
+      // Cerrar el diálogo y limpiar formulario
+      setShowAddSubjectDialog(false);
+      setNewSubject({ name: '', credits: 0, semesterId: '' });
+      setIsCatalogSelected(false);
+      setAvailableGroups([]);
+
     } catch (error) {
       console.error('❌ Error agregando materia:', error);
       setError('Error al agregar la materia en Firebase');
@@ -432,7 +665,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleAddSemester = async (semesterData: { name: string; year: number; period: number }) => {
     try {
       console.log('➕ Creando nuevo semestre en Firebase:', semesterData);
-      
+
       if (!user?.id) {
         throw new Error('Usuario no autenticado');
       }
@@ -448,7 +681,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         startDate: new Date().toISOString(),
         endDate: new Date(Date.now() + 120 * 24 * 60 * 60 * 1000).toISOString() // 120 días después
       });
-      
+
       // Actualizar estado local
       const newPeriod: AcademicPeriod = {
         id: firebaseSemester.id,
@@ -459,13 +692,13 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         credits: 0,
         gpa: null
       };
-      
+
       setPeriods(prev => [...prev, newPeriod]);
       // No establecer automáticamente como semestre actual
       // El usuario debe activar manualmente el semestre
-      
+
       console.log('✅ Semestre creado en Firebase:', firebaseSemester.id);
-      
+
     } catch (error) {
       console.error('❌ Error creando semestre:', error);
       setError('Error al crear el semestre en Firebase');
@@ -476,7 +709,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleEditSemester = async (semesterData: { name: string; year: number; period: number }) => {
     try {
       console.log('✏️ Editando semestre:', editingSemester?.id, semesterData);
-      
+
       if (!editingSemester) {
         throw new Error('No hay semestre seleccionado para editar');
       }
@@ -488,17 +721,17 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         period: semesterData.period,
         updatedAt: new Date().toISOString()
       });
-      
+
       // Actualizar estado local
-      setPeriods(prev => prev.map(period => 
-        period.id === editingSemester.id 
+      setPeriods(prev => prev.map(period =>
+        period.id === editingSemester.id
           ? { ...period, name: semesterData.name }
           : period
       ));
-      
+
       setEditingSemester(null);
       console.log('✅ Semestre editado exitosamente');
-      
+
     } catch (error) {
       console.error('❌ Error editando semestre:', error);
       setError('Error al editar el semestre');
@@ -509,7 +742,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleEditSubject = async (subjectData: { name: string; credits: number }) => {
     try {
       console.log('✏️ Editando materia:', editingSubject?.id, subjectData);
-      
+
       if (!editingSubject || !currentSemester) {
         throw new Error('No hay materia o semestre seleccionado para editar');
       }
@@ -520,17 +753,17 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         credits: subjectData.credits,
         updatedAt: new Date().toISOString()
       });
-      
+
       // Actualizar estado local
-      setSubjects(prev => prev.map(subject => 
-        subject.id === editingSubject.id 
+      setSubjects(prev => prev.map(subject =>
+        subject.id === editingSubject.id
           ? { ...subject, name: subjectData.name, credits: subjectData.credits }
           : subject
       ));
-      
+
       setEditingSubject(null);
       console.log('✅ Materia editada exitosamente');
-      
+
     } catch (error) {
       console.error('❌ Error editando materia:', error);
       setError('Error al editar la materia');
@@ -542,16 +775,16 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
     try {
       setProcessingCut('adding');
       console.log('➕ Agregando corte académico:', cutData);
-      
+
       // Usar subjectId proporcionado o selectedSubjectForCut
       const targetSubjectId = subjectId || selectedSubjectForCut?.id;
       const targetSubject = subjectId ? subjects.find(s => s.id === subjectId) : selectedSubjectForCut;
-      
+
       console.log('📋 Materia objetivo:', targetSubject);
       console.log('📋 Semestre actual:', currentSemester);
       console.log('📋 ID de materia:', targetSubjectId);
       console.log('📋 ID de semestre:', currentSemester?.id);
-      
+
       if (!targetSubjectId || !currentSemester) {
         console.error('❌ Error: No hay materia o semestre seleccionado');
         console.error('❌ targetSubjectId:', targetSubjectId);
@@ -574,20 +807,20 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
       console.log('🔄 Iniciando llamada a Firebase...');
       const newCutResult = await academicFirebaseService.addCutToSubject(targetSubjectId, cutData);
       console.log('🔄 Llamada a Firebase completada');
-      
+
       console.log('✅ Corte agregado en Firebase:', newCutResult);
-      
+
       // Verificar que el corte se guardó correctamente
       console.log('🔍 Verificando que el corte se guardó...');
       console.log('🔍 Buscando en ruta:', `academic/semesters/${currentSemester.id}/subjects/${targetSubjectId}/cuts/${newCutResult.id}`);
-      
+
       // Buscar en todas las rutas posibles
       const possiblePaths = [
         `academic/semesters/${currentSemester.id}/subjects/${targetSubjectId}/cuts/${newCutResult.id}`,
         `academic/semesters/${currentSemester.id}/subjects/${targetSubjectId}/cuts`,
         `academic/semesters/${currentSemester.id}/subjects/${targetSubjectId}`
       ];
-      
+
       for (const path of possiblePaths) {
         const verificationRef = ref(getFirebaseDatabase(), path);
         const verificationSnapshot = await get(verificationRef);
@@ -598,26 +831,26 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
           console.log(`❌ No se encontraron datos en ruta ${path}`);
         }
       }
-      
+
       // Actualizar estado local
       console.log('🔄 Actualizando estado local...');
       setSubjects(prev => {
-        const updatedSubjects = prev.map(subject => 
-          subject.id === targetSubjectId 
+        const updatedSubjects = prev.map(subject =>
+          subject.id === targetSubjectId
             ? { ...subject, cuts: [...subject.cuts, newCutResult] }
             : subject
         );
         console.log('🔄 Estado local actualizado:', updatedSubjects.find(s => s.id === targetSubjectId)?.cuts);
         return updatedSubjects;
       });
-      
+
       // Actualizar editingSubject si está abierto
       if (editingSubject && editingSubject.id === targetSubjectId) {
         setEditingSubject(prev => prev ? { ...prev, cuts: [...prev.cuts, newCutResult] } : null);
       }
-      
+
       console.log('🔄 Estado local actualizado');
-      
+
       // Actualizar promedio de la materia en Firebase
       const updatedSubject = subjects.find(s => s.id === targetSubjectId);
       if (updatedSubject) {
@@ -625,17 +858,17 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         console.log('📊 Actualizando promedio con cortes:', updatedCuts);
         await academicFirebaseService.updateSubjectAverage(targetSubjectId, updatedCuts);
       }
-      
+
       // Recargar datos para asegurar sincronización
       console.log('🔄 Recargando datos para sincronización...');
       await loadAcademicData();
-      
+
       setShowAddCutDialog(false);
       setSelectedSubjectForCut(null);
       setNewCut({ title: '', percentage: 0, description: '' });
-      
+
       console.log('✅ Corte académico agregado exitosamente');
-      
+
     } catch (error) {
       console.error('❌ Error agregando corte académico:', error);
       setError('Error al agregar el corte académico');
@@ -648,10 +881,10 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleUpdateCutGrade = async (cutId: string, grade: number, subjectId?: string) => {
     try {
       console.log('📝 Actualizando nota del corte:', cutId, 'Nota:', grade);
-      
+
       // Usar subjectId proporcionado o selectedSubjectForCut
       const targetSubjectId = subjectId || selectedSubjectForCut?.id;
-      
+
       if (!targetSubjectId || !currentSemester) {
         throw new Error('No hay materia o semestre seleccionado');
       }
@@ -663,34 +896,34 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
 
       // Actualizar nota en Firebase
       await academicFirebaseService.updateCutGrade(targetSubjectId, cutId, grade);
-      
+
       // Actualizar estado local
-      setSubjects(prev => prev.map(subject => 
-        subject.id === targetSubjectId 
-          ? { 
-              ...subject, 
-              cuts: subject.cuts.map(cut => 
-                cut.id === cutId ? { ...cut, grade } : cut
-              )
-            }
+      setSubjects(prev => prev.map(subject =>
+        subject.id === targetSubjectId
+          ? {
+            ...subject,
+            cuts: subject.cuts.map(cut =>
+              cut.id === cutId ? { ...cut, grade } : cut
+            )
+          }
           : subject
       ));
-      
+
       // Actualizar promedio de la materia en Firebase
       const updatedSubject = subjects.find(s => s.id === targetSubjectId);
       if (updatedSubject) {
-        const updatedCuts = updatedSubject.cuts.map(cut => 
+        const updatedCuts = updatedSubject.cuts.map(cut =>
           cut.id === cutId ? { ...cut, grade } : cut
         );
         await academicFirebaseService.updateSubjectAverage(targetSubjectId, updatedCuts);
       }
-      
+
       // Recargar datos para asegurar sincronización
       console.log('🔄 Recargando datos para sincronización...');
       await loadAcademicData();
-      
+
       console.log('✅ Nota del corte actualizada exitosamente');
-      
+
     } catch (error) {
       console.error('❌ Error actualizando nota del corte:', error);
       setError('Error al actualizar la nota del corte');
@@ -701,37 +934,37 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleDeleteCut = async (cutId: string, subjectId?: string) => {
     try {
       console.log('🗑️ Eliminando corte académico:', cutId);
-      
+
       // Usar subjectId proporcionado o selectedSubjectForCut
       const targetSubjectId = subjectId || selectedSubjectForCut?.id;
-      
+
       if (!targetSubjectId || !currentSemester) {
         throw new Error('No hay materia o semestre seleccionado');
       }
 
       // Eliminar corte en Firebase
       await academicFirebaseService.deleteCut(targetSubjectId, cutId);
-      
+
       // Actualizar estado local
-      setSubjects(prev => prev.map(subject => 
-        subject.id === targetSubjectId 
+      setSubjects(prev => prev.map(subject =>
+        subject.id === targetSubjectId
           ? { ...subject, cuts: subject.cuts.filter(cut => cut.id !== cutId) }
           : subject
       ));
-      
+
       // Actualizar promedio de la materia en Firebase
       const updatedSubject = subjects.find(s => s.id === targetSubjectId);
       if (updatedSubject) {
         const updatedCuts = updatedSubject.cuts.filter(cut => cut.id !== cutId);
         await academicFirebaseService.updateSubjectAverage(targetSubjectId, updatedCuts);
       }
-      
+
       // Recargar datos para asegurar sincronización
       console.log('🔄 Recargando datos para sincronización...');
       await loadAcademicData();
-      
+
       console.log('✅ Corte académico eliminado exitosamente');
-      
+
     } catch (error) {
       console.error('❌ Error eliminando corte académico:', error);
       setError('Error al eliminar el corte académico');
@@ -755,7 +988,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleSetActiveSemester = async (semesterId: string) => {
     try {
       console.log('🎯 Estableciendo semestre activo:', semesterId);
-      
+
       // Desactivar todos los semestres primero
       for (const period of periods) {
         if (period.id !== semesterId) {
@@ -765,24 +998,24 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
           });
         }
       }
-      
+
       // Activar el semestre seleccionado
       await academicFirebaseService.updateSemester(semesterId, {
         isActive: true,
         updatedAt: new Date().toISOString()
       });
-      
+
       // Actualizar estado local inmediatamente
       setPeriods(prev => prev.map(period => ({
         ...period,
         isActive: period.id === semesterId
       })));
-      
+
       // Recargar datos para obtener el semestre activo actualizado
       await loadAcademicData();
-      
+
       console.log('✅ Semestre activo establecido:', semesterId);
-      
+
     } catch (error) {
       console.error('❌ Error estableciendo semestre activo:', error);
       setError('Error al establecer el semestre activo');
@@ -793,21 +1026,21 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleDeleteSemester = async (semesterId: string) => {
     try {
       console.log('🗑️ Eliminando semestre:', semesterId);
-      
+
       // Eliminar semestre de Firebase
       await academicFirebaseService.deleteSemester(semesterId);
-      
+
       // Actualizar estado local
       setPeriods(prev => prev.filter(period => period.id !== semesterId));
-      
+
       // Si era el semestre actual, limpiar
       if (currentSemester?.id === semesterId) {
         setCurrentSemester(null);
         setSubjects([]);
       }
-      
+
       console.log('✅ Semestre eliminado exitosamente');
-      
+
     } catch (error) {
       console.error('❌ Error eliminando semestre:', error);
       setError('Error al eliminar el semestre');
@@ -818,19 +1051,19 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   const handleDeleteSubject = async (subjectId: string) => {
     try {
       console.log('🗑️ Eliminando materia:', subjectId);
-      
+
       if (!currentSemester) {
         throw new Error('No hay semestre actual');
       }
 
       // Eliminar materia de Firebase
       await academicFirebaseService.deleteSubject(currentSemester.id, subjectId);
-      
+
       // Actualizar estado local
       setSubjects(prev => prev.filter(subject => subject.id !== subjectId));
-      
+
       console.log('✅ Materia eliminada exitosamente');
-      
+
     } catch (error) {
       console.error('❌ Error eliminando materia:', error);
       setError('Error al eliminar la materia');
@@ -854,33 +1087,33 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   // Calcular GPA general de TODOS los semestres
   const calculateOverallGPA = () => {
     if (periods.length === 0) return 0;
-    
+
     // Por ahora, usar el GPA del semestre activo si está disponible
     // TODO: Implementar cálculo completo de todos los semestres
     const activePeriod = periods.find(p => p.isActive);
     if (activePeriod && activePeriod.gpa && activePeriod.gpa > 0) {
       return activePeriod.gpa;
     }
-    
+
     // Si no hay GPA del semestre activo, calcular basado en las materias actuales
     if (subjects.length === 0) return 0;
-    
+
     const subjectsWithGrades = subjects.filter(s => {
-      const currentAverage = s.cuts && s.cuts.length > 0 ? 
+      const currentAverage = s.cuts && s.cuts.length > 0 ?
         academicFirebaseService.calculateSubjectAverage(s.cuts) : null;
       return (currentAverage !== null && currentAverage > 0) || (s.grade !== null && s.grade > 0);
     });
-    
+
     if (subjectsWithGrades.length === 0) return 0;
-    
+
     const totalCredits = subjectsWithGrades.reduce((sum, s) => sum + s.credits, 0);
     const weightedSum = subjectsWithGrades.reduce((sum, s) => {
-      const currentAverage = s.cuts && s.cuts.length > 0 ? 
+      const currentAverage = s.cuts && s.cuts.length > 0 ?
         academicFirebaseService.calculateSubjectAverage(s.cuts) : null;
       const grade = currentAverage !== null ? currentAverage : s.grade;
       return sum + (grade! * s.credits);
     }, 0);
-    
+
     return totalCredits > 0 ? (weightedSum / totalCredits) : 0;
   };
 
@@ -896,14 +1129,14 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
 
   const calculateGoalsProgress = () => {
     if (goals.length === 0) return 0;
-    
+
     // Calcular el progreso promedio de todas las metas
     const totalProgress = goals.reduce((sum, goal) => {
       // Si tiene progreso numérico, usarlo
       if (goal.progress !== undefined && goal.progress !== null) {
         return sum + goal.progress;
       }
-      
+
       // Si no tiene progreso numérico, calcular basado en el status
       switch (goal.status) {
         case 'completed':
@@ -918,34 +1151,34 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
           return sum + 0;
       }
     }, 0);
-    
+
     const averageProgress = totalProgress / goals.length;
-    
+
     console.log(`📊 Progreso de metas: ${goals.length} metas, promedio: ${averageProgress.toFixed(1)}%`);
-    
+
     return Math.round(averageProgress);
   };
 
   // Calcular GPA del semestre actual
   const calculateCurrentSemesterGPA = () => {
     if (subjects.length === 0) return 0;
-    
+
     const subjectsWithGrades = subjects.filter(s => {
-      const currentAverage = s.cuts && s.cuts.length > 0 ? 
+      const currentAverage = s.cuts && s.cuts.length > 0 ?
         academicFirebaseService.calculateSubjectAverage(s.cuts) : null;
       return (currentAverage !== null && currentAverage > 0) || (s.grade !== null && s.grade > 0);
     });
-    
+
     if (subjectsWithGrades.length === 0) return 0;
-    
+
     const totalCredits = subjectsWithGrades.reduce((sum, s) => sum + s.credits, 0);
     const weightedSum = subjectsWithGrades.reduce((sum, s) => {
-      const currentAverage = s.cuts && s.cuts.length > 0 ? 
+      const currentAverage = s.cuts && s.cuts.length > 0 ?
         academicFirebaseService.calculateSubjectAverage(s.cuts) : null;
       const grade = currentAverage !== null ? currentAverage : s.grade;
       return sum + (grade! * s.credits);
     }, 0);
-    
+
     return totalCredits > 0 ? (weightedSum / totalCredits) : 0;
   };
 
@@ -953,17 +1186,17 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
     // Buscar el semestre activo usando isActive
     const currentPeriod = periods.find(p => p.isActive);
     if (!currentPeriod) return 0;
-    
+
     // Si no hay materias en el semestre activo, progreso es 0
     if (subjects.length === 0) return 0;
-    
+
     // Calcular el progreso promedio de todas las materias
     let totalProgress = 0;
     let subjectsWithProgress = 0;
-    
+
     subjects.forEach(subject => {
       let subjectProgress = 0;
-      
+
       // Si tiene nota final, está 100% completa
       if (subject.grade !== null && subject.grade > 0) {
         subjectProgress = 100;
@@ -974,19 +1207,19 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
         const percentageWithGrades = cutsWithGrades.reduce((sum, cut) => sum + cut.percentage, 0);
         subjectProgress = Math.min(percentageWithGrades, 100); // Máximo 100%
       }
-      
+
       // Solo contar materias que tienen algún progreso
       if (subjectProgress > 0) {
         totalProgress += subjectProgress;
         subjectsWithProgress++;
       }
     });
-    
+
     // Calcular el progreso promedio del semestre
     const averageProgress = subjectsWithProgress > 0 ? (totalProgress / subjectsWithProgress) : 0;
-    
+
     console.log(`📊 Progreso del semestre: ${subjectsWithProgress}/${subjects.length} materias con progreso, promedio: ${averageProgress.toFixed(1)}%`);
-    
+
     return Math.round(averageProgress);
   };
 
@@ -1005,7 +1238,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
           <h1 className="text-2xl mb-2">Gestión Académica</h1>
           <p className="text-gray-600">Cargando información académica...</p>
         </div>
-        
+
         <div className="grid gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <Card key={i}>
@@ -1026,13 +1259,13 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-      <div>
-        <h1 className="text-2xl mb-2">📚 Gestión Académica</h1>
-        <p className="text-gray-600">
-          Administra tus semestres, calificaciones y metas académicas
-        </p>
+        <div>
+          <h1 className="text-2xl mb-2">📚 Gestión Académica</h1>
+          <p className="text-gray-600">
+            Administra tus semestres, calificaciones y metas académicas
+          </p>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -1135,7 +1368,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
           </div>
 
           {/* Progreso de Metas */}
-            <Card>
+          <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="size-5" />
@@ -1147,14 +1380,14 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                  <div>
+                <div>
                   <div className="flex justify-between text-sm mb-2">
                     <span>Progreso promedio</span>
                     <span>{calculateGoalsProgress()}%</span>
                   </div>
                   <Progress value={calculateGoalsProgress()} className="w-full" />
                 </div>
-                
+
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="text-center p-4 bg-purple-50 rounded-lg">
                     <p className="text-2xl font-bold text-purple-600">
@@ -1162,17 +1395,65 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                     </p>
                     <p className="text-sm text-gray-600">Metas Totales</p>
                   </div>
-                  
+
                   <div className="text-center p-4 bg-green-50 rounded-lg">
                     <p className="text-2xl font-bold text-green-600">
                       {goals.filter(g => g.status === 'completed').length}
                     </p>
                     <p className="text-sm text-gray-600">Completadas</p>
                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Materias Aprobadas */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="size-5 text-green-600" />
+                Materias Aprobadas
+              </CardTitle>
+              <CardDescription>
+                Resumen de materias que has completado satisfactoriamente
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 p-4 bg-green-50 rounded-lg border border-green-100">
+                  <div className="p-3 bg-white rounded-full shadow-sm">
+                    <Award className="size-8 text-green-600" />
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-bold text-green-700">
+                      {subjects.filter(s => (s.grade !== null && s.grade >= 3.0) || s.status === 'passed').length}
+                    </h4>
+                    <p className="text-sm text-green-800">Materias Aprobadas</p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Listado de aprobadas:</p>
+                  {subjects.filter(s => (s.grade !== null && s.grade >= 3.0) || s.status === 'passed').length > 0 ? (
+                    <ul className="space-y-2">
+                      {subjects
+                        .filter(s => (s.grade !== null && s.grade >= 3.0) || s.status === 'passed')
+                        .map(subject => (
+                          <li key={subject.id} className="flex justify-between items-center text-sm p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                            <span className="font-medium text-gray-800">{subject.name}</span>
+                            <Badge variant="outline" className="bg-white text-green-600 border-green-200">
+                              {subject.grade ? subject.grade.toFixed(1) : 'Aprobada'}
+                            </Badge>
+                          </li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic">No tienes materias aprobadas registradas en el semestre actual.</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Progreso del Semestre Actual */}
           <Card>
@@ -1182,7 +1463,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                 Semestre Actual: {getCurrentSemesterName()}
               </CardTitle>
               <CardDescription>
-                {periods.find(p => p.status === 'current') 
+                {periods.find(p => p.status === 'current')
                   ? 'Progreso y estadísticas del semestre en curso'
                   : 'No hay semestre activo. Crea un nuevo semestre para comenzar.'
                 }
@@ -1251,8 +1532,8 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                     </Badge>
                   </div>
                 ))}
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full"
                   onClick={() => setActiveTab('goals')}
                 >
@@ -1269,10 +1550,10 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
             <h3 className="text-lg font-semibold">Períodos Académicos</h3>
             <Dialog open={showAddSemesterDialog} onOpenChange={setShowAddSemesterDialog}>
               <DialogTrigger asChild>
-            <Button onClick={() => setShowAddSemesterDialog(true)}>
-              <Plus className="size-4 mr-2" />
-              Nuevo Período
-            </Button>
+                <Button onClick={() => setShowAddSemesterDialog(true)}>
+                  <Plus className="size-4 mr-2" />
+                  Nuevo Período
+                </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -1303,8 +1584,8 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="semesterPeriod">Período</Label>
-                    <Select 
-                      value={newSemester.period.toString()} 
+                    <Select
+                      value={newSemester.period.toString()}
                       onValueChange={(value) => setNewSemester(prev => ({ ...prev, period: parseInt(value) }))}
                     >
                       <SelectTrigger>
@@ -1317,8 +1598,8 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                     </Select>
                   </div>
                   <div className="flex justify-end gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => {
                         setNewSemester({ name: '', year: new Date().getFullYear(), period: 1 });
                         setShowAddSemesterDialog(false);
@@ -1326,7 +1607,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                     >
                       Cancelar
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
                         if (newSemester.name) {
                           handleAddSemester(newSemester);
@@ -1351,18 +1632,18 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="text-center">
-                        <Badge 
+                        <Badge
                           variant={
                             period.isActive ? 'default' :
-                            period.status === 'completed' ? 'secondary' : 'outline'
+                              period.status === 'completed' ? 'secondary' : 'outline'
                           }
                         >
                           {period.isActive ? 'Activo' :
-                           period.status === 'completed' ? 'Completado' : 'Planeado'}
+                            period.status === 'completed' ? 'Completado' : 'Planeado'}
                         </Badge>
                         <h4 className="font-semibold text-lg mt-1">{period.name}</h4>
                       </div>
-                      
+
                       <div className="space-y-1">
                         <div className="flex items-center gap-4 text-sm">
                           <span>Créditos: {period.credits}</span>
@@ -1381,25 +1662,25 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                           Activo
                         </Badge>
                       ) : (
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => handleSetActiveSemester(period.id)}
                           className="text-green-600 hover:text-green-700 hover:bg-green-50"
                         >
                           <CheckCircle className="size-4" />
                           Activar
-                      </Button>
+                        </Button>
                       )}
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => setEditingSemester(period)}
                       >
                         <Edit className="size-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => setDeletingSemester(period)}
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -1441,8 +1722,8 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                     type="number"
                     placeholder="2024"
                     value={editingSemester.startDate.getFullYear()}
-                    onChange={(e) => setEditingSemester(prev => prev ? { 
-                      ...prev, 
+                    onChange={(e) => setEditingSemester(prev => prev ? {
+                      ...prev,
                       startDate: new Date(parseInt(e.target.value) || 2024, prev.startDate.getMonth()),
                       endDate: new Date(parseInt(e.target.value) || 2024, prev.endDate.getMonth())
                     } : null)}
@@ -1452,7 +1733,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                   <Button variant="outline" onClick={() => setEditingSemester(null)}>
                     Cancelar
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       if (editingSemester) {
                         handleEditSemester({
@@ -1479,9 +1760,9 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
             <Dialog open={showAddSubjectDialog} onOpenChange={setShowAddSubjectDialog}>
               <DialogTrigger asChild>
                 <Button onClick={() => setShowAddSubjectDialog(true)}>
-              <Plus className="size-4 mr-2" />
-              Agregar Materia
-            </Button>
+                  <Plus className="size-4 mr-2" />
+                  Agregar Materia
+                </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
@@ -1493,8 +1774,8 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="subjectSemester">Semestre</Label>
-                    <Select 
-                      value={newSubject.semesterId || ''} 
+                    <Select
+                      value={newSubject.semesterId || ''}
                       onValueChange={(value) => setNewSubject(prev => ({ ...prev, semesterId: value }))}
                     >
                       <SelectTrigger>
@@ -1509,36 +1790,202 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="subjectName">Nombre de la materia</Label>
-                    <Input
-                      id="subjectName"
-                      placeholder="Ej: Cálculo I"
-                      value={newSubject.name}
-                      onChange={(e) => setNewSubject(prev => ({ ...prev, name: e.target.value }))}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="subjectCode">Cod.</Label>
+                      <Input
+                        id="subjectCode"
+                        placeholder="Código"
+                        value={newSubject.code || ''}
+                        onChange={(e) => setNewSubject(prev => ({ ...prev, code: e.target.value }))}
+                        readOnly={isCatalogSelected}
+                        className={isCatalogSelected ? 'bg-gray-100' : ''}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="subjectGroup">Grupo</Label>
+                      {availableGroups.length > 0 ? (
+                        <Select
+                          value={newSubject.group || ''}
+                          onValueChange={handleGroupChange}
+                          disabled={!newSubject.name} // Deshabilitar si no hay materia
+                        >
+                          <SelectTrigger id="subjectGroup">
+                            <SelectValue placeholder="Seleccionar Grupo" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableGroups.map((groupSubject, idx) => (
+                              <SelectItem key={`${groupSubject.group}-${groupSubject.professor}-${idx}`} value={groupSubject.group}>
+                                Grupo {groupSubject.group} - {groupSubject.professor || 'Sin docente'} ({groupSubject.project})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id="subjectGroup"
+                          placeholder="Grupo"
+                          value={newSubject.group || ''}
+                          onChange={(e) => setNewSubject(prev => ({ ...prev, group: e.target.value }))}
+                        />
+                      )}
+                    </div>
                   </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="subjectProject">Proyecto Curricular</Label>
+                      <Select
+                        value={newSubject.project || ''}
+                        onValueChange={(value) => setNewSubject(prev => ({ ...prev, project: value }))}
+                      >
+                        <SelectTrigger id="subjectProject">
+                          <SelectValue placeholder="Proyecto" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {uniqueProjects.map((project, idx) => (
+                            <SelectItem key={`${project}-${idx}`} value={project}>
+                              {project}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="subjectFaculty">Facultad</Label>
+                      <Select
+                        value={newSubject.faculty || ''}
+                        onValueChange={(value) => setNewSubject(prev => ({ ...prev, faculty: value }))}
+                      >
+                        <SelectTrigger id="subjectFaculty">
+                          <SelectValue placeholder="Facultad" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {uniqueFaculties.map((faculty, idx) => (
+                            <SelectItem key={`${faculty}-${idx}`} value={faculty}>
+                              {faculty}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="subjectCredits">Créditos</Label>
-                    <Input
-                      id="subjectCredits"
-                      type="number"
-                      placeholder="Ej: 4"
-                      value={newSubject.credits}
-                      onChange={(e) => setNewSubject(prev => ({ ...prev, credits: parseInt(e.target.value) || 0 }))}
-                    />
+                    <Label htmlFor="subjectName">Espacio Académico</Label>
+                    <div className="relative">
+                      <Input
+                        id="subjectName"
+                        placeholder="Ej: Cálculo I"
+                        value={newSubject.name}
+                        onChange={(e) => handleSubjectSearch(e.target.value)}
+                        onFocus={() => {
+                          if (newSubject.name.length >= 2) {
+                            handleSubjectSearch(newSubject.name);
+                          }
+                        }}
+                        autoComplete="off"
+                      />
+                      {universitySubjects.length > 0 && (
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                          <Search className="size-4" />
+                        </div>
+                      )}
+
+                      {/* Lista de sugerencias */}
+                      {showSuggestions && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                          {subjectSuggestions.map((subject, index) => (
+                            <div
+                              key={`${subject.code}-${index}`}
+                              className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                              onClick={() => selectSubjectSuggestion(subject)}
+                              role="button"
+                              tabIndex={0}
+                            >
+                              <div className="font-medium text-gray-900">{subject.name}</div>
+                              <div className="text-xs text-gray-500 flex justify-between">
+                                <span>{subject.code}</span>
+                                <span className="font-medium text-blue-600">Ver grupos disponibles</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="subjectCredits">Créditos</Label>
+                      <Input
+                        id="subjectCredits"
+                        type="number"
+                        placeholder="Ej: 4"
+                        value={newSubject.credits}
+                        onChange={(e) => setNewSubject(prev => ({ ...prev, credits: parseInt(e.target.value) || 0 }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="subjectProfessor">Docente</Label>
+                      <Input
+                        id="subjectProfessor"
+                        placeholder="Nombre del docente"
+                        value={newSubject.professor || ''}
+                        onChange={(e) => setNewSubject(prev => ({ ...prev, professor: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Tabla de Horarios */}
+                  <div className="space-y-2">
+                    <Label>Horarios</Label>
+                    <div className="border rounded-md overflow-hidden">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-gray-50 text-gray-500 font-medium border-b">
+                          <tr>
+                            <th className="px-3 py-2">Dia</th>
+                            <th className="px-3 py-2">Hora</th>
+                            <th className="px-3 py-2">Sede</th>
+                            <th className="px-3 py-2">Edificio</th>
+                            <th className="px-3 py-2">Salon</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {newSubject.scheduleBlocks && newSubject.scheduleBlocks.length > 0 ? (
+                            newSubject.scheduleBlocks.map((block: any, idx: number) => (
+                              <tr key={idx} className="bg-white">
+                                <td className="px-3 py-2">{block.day}</td>
+                                <td className="px-3 py-2 whitespace-nowrap">{block.time}</td>
+                                <td className="px-3 py-2">{block.sede}</td>
+                                <td className="px-3 py-2">{block.building}</td>
+                                <td className="px-3 py-2">{block.room}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={5} className="px-3 py-4 text-center text-gray-400 italic">
+                                No hay horarios definidos
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => {
                       setNewSubject({ name: '', credits: 0, semesterId: '' });
+                      setIsCatalogSelected(false);
+                      setAvailableGroups([]);
                       setShowAddSubjectDialog(false);
                     }}>
                       Cancelar
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
                         if (newSubject.name && newSubject.credits > 0 && newSubject.semesterId) {
-                          handleAddSubject(newSubject);
+                          handleAddSubject();
                         }
                       }}
                       disabled={!newSubject.name || newSubject.credits <= 0 || !newSubject.semesterId}
@@ -1558,42 +2005,42 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                   <div className="space-y-4">
                     {/* Información básica de la materia */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="text-center">
+                      <div className="flex items-center gap-4">
+                        <div className="text-center">
                           <div className="size-10 sm:size-12 bg-blue-100 rounded-lg flex items-center justify-center">
                             <BookOpen className="size-5 sm:size-6 text-blue-600" />
+                          </div>
                         </div>
-                      </div>
-                      
+
                         <div className="flex-1 min-w-0">
                           <h4 className="font-semibold text-sm sm:text-base truncate">{subject.name}</h4>
                           <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-600 mt-1">
-                          <span>Créditos: {subject.credits}</span>
-                          {subject.grade && (
-                            <span>Calificación: {subject.grade.toFixed(1)}</span>
-                          )}
+                            <span>Créditos: {subject.credits}</span>
+                            {subject.grade && (
+                              <span>Calificación: {subject.grade.toFixed(1)}</span>
+                            )}
                             {subject.semesterName && (
                               <span className="text-blue-600 font-medium truncate">
                                 {subject.semesterName}
                               </span>
-                          )}
-                          <Badge 
-                            variant={
-                              subject.status === 'passed' ? 'secondary' :
-                              subject.status === 'current' ? 'default' : 'outline'
-                            }
+                            )}
+                            <Badge
+                              variant={
+                                subject.status === 'passed' ? 'secondary' :
+                                  subject.status === 'current' ? 'default' : 'outline'
+                              }
                               className="text-xs"
-                          >
-                            {subject.status === 'passed' ? 'Aprobada' :
-                             subject.status === 'current' ? 'Cursando' : 'Pendiente'}
-                          </Badge>
+                            >
+                              {subject.status === 'passed' ? 'Aprobada' :
+                                subject.status === 'current' ? 'Cursando' : 'Pendiente'}
+                            </Badge>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => {
                             setSelectedSubjectForCut(subject);
@@ -1605,15 +2052,15 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                           <span className="hidden sm:inline">Agregar Corte</span>
                           <span className="sm:hidden">Corte</span>
                         </Button>
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => setEditingSubject(subject)}
                         >
                           <Edit className="size-3 sm:size-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => setDeletingSubject(subject)}
                           className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -1629,7 +2076,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                         onClick={() => toggleSubjectExpansion(subject.id)}
                         className="flex items-center justify-between w-full p-2 hover:bg-gray-50 rounded-lg transition-colors"
                       >
-                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                           <span className="font-medium text-sm text-gray-700">
                             Cortes Académicos ({subject.cuts?.length || 0})
                           </span>
@@ -1696,7 +2143,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                                   </div>
                                 </div>
                               ))}
-                              
+
                               {/* Promedio ponderado */}
                               <div className="mt-3 p-3 bg-blue-50 rounded-lg">
                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1711,8 +2158,8 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                             <div className="p-4 text-center text-gray-500">
                               <p className="text-sm">No hay cortes académicos agregados</p>
                               <p className="text-xs mt-1">Usa el botón "Agregar Corte" para comenzar</p>
-                        </div>
-                      )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1766,7 +2213,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                   <Button variant="outline" onClick={() => setEditingSubject(null)}>
                     Cancelar
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       if (editingSubject) {
                         handleEditSubject({
@@ -1792,7 +2239,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
               <DialogHeader>
                 <DialogTitle>Confirmar Eliminación</DialogTitle>
                 <DialogDescription>
-                  ¿Estás seguro de que quieres eliminar el semestre "{deletingSemester.name}"? 
+                  ¿Estás seguro de que quieres eliminar el semestre "{deletingSemester.name}"?
                   Esta acción no se puede deshacer y se eliminarán todas las materias asociadas.
                 </DialogDescription>
               </DialogHeader>
@@ -1800,7 +2247,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                 <Button variant="outline" onClick={() => setDeletingSemester(null)}>
                   Cancelar
                 </Button>
-                <Button 
+                <Button
                   variant="destructive"
                   onClick={() => {
                     if (deletingSemester) {
@@ -1823,7 +2270,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
               <DialogHeader>
                 <DialogTitle>Confirmar Eliminación</DialogTitle>
                 <DialogDescription>
-                  ¿Estás seguro de que quieres eliminar la materia "{deletingSubject.name}"? 
+                  ¿Estás seguro de que quieres eliminar la materia "{deletingSubject.name}"?
                   Esta acción no se puede deshacer.
                 </DialogDescription>
               </DialogHeader>
@@ -1831,7 +2278,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                 <Button variant="outline" onClick={() => setDeletingSubject(null)}>
                   Cancelar
                 </Button>
-                <Button 
+                <Button
                   variant="destructive"
                   onClick={() => {
                     if (deletingSubject) {
@@ -1856,82 +2303,88 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                 Agrega un nuevo corte académico para {selectedSubjectForCut?.name}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="cutTitle">Título del Corte</Label>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="cutTitle" className="text-right">
+                  Título
+                </Label>
                 <Input
                   id="cutTitle"
-                  placeholder="Ej: Primer Parcial, Quiz 1, Proyecto Final"
+                  placeholder="Ej: Primer Parcial"
                   value={newCut.title}
                   onChange={(e) => setNewCut(prev => ({ ...prev, title: e.target.value }))}
+                  className="col-span-3"
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cutPercentage">Porcentaje (%)</Label>
-                <Input
-                  id="cutPercentage"
-                  type="number"
-                  min="0"
-                  max={100 - (selectedSubjectForCut?.cuts.reduce((sum, cut) => sum + cut.percentage, 0) || 0)}
-                  placeholder="Ej: 30"
-                  value={newCut.percentage}
-                  onChange={(e) => setNewCut(prev => ({ ...prev, percentage: parseInt(e.target.value) || 0 }))}
-                />
-                {selectedSubjectForCut && (
-                  <p className="text-sm text-gray-600">
-                    Porcentaje actual: {selectedSubjectForCut.cuts.reduce((sum, cut) => sum + cut.percentage, 0)}%
-                    {selectedSubjectForCut.cuts.reduce((sum, cut) => sum + cut.percentage, 0) > 0 && (
-                      <span className="text-blue-600 ml-2">
-                        (Máximo: {100 - selectedSubjectForCut.cuts.reduce((sum, cut) => sum + cut.percentage, 0)}%)
-                      </span>
-                    )}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cutDescription">Descripción (Opcional)</Label>
-                <Textarea
-                  id="cutDescription"
-                  placeholder="Descripción del corte académico"
-                  value={newCut.description}
-                  onChange={(e) => setNewCut(prev => ({ ...prev, description: e.target.value }))}
-                />
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => {
-                  setNewCut({ title: '', percentage: 0, description: '' });
-                  setShowAddCutDialog(false);
-                  setSelectedSubjectForCut(null);
-                }}>
-                  Cancelar
-                </Button>
-                <Button 
-                  onClick={() => {
-                    console.log('🖱️ Botón Agregar Corte presionado');
-                    console.log('📋 Datos del corte:', newCut);
-                    console.log('📋 Materia seleccionada:', selectedSubjectForCut);
-                    
-                    if (newCut.title && newCut.percentage > 0) {
-                      console.log('✅ Validación pasada, llamando handleAddCut');
-                      handleAddCut(newCut);
-                    } else {
-                      console.log('❌ Validación falló:', {
-                        title: newCut.title,
-                        percentage: newCut.percentage
-                      });
-                    }
-                  }}
-                  disabled={
-                    !newCut.title || 
-                    newCut.percentage <= 0 || 
-                    (selectedSubjectForCut && 
-                     selectedSubjectForCut.cuts.reduce((sum, cut) => sum + cut.percentage, 0) + newCut.percentage > 100)
-                  }
-                >
-                  Agregar Corte
-                </Button>
               </div>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="cutPercentage" className="text-right">
+                Porcentaje
+              </Label>
+              <Input
+                id="cutPercentage"
+                type="number"
+                min="0"
+                max={100 - (selectedSubjectForCut?.cuts.reduce((sum, cut) => sum + cut.percentage, 0) || 0)}
+                placeholder="Ej: 30"
+                value={newCut.percentage}
+                onChange={(e) => setNewCut(prev => ({ ...prev, percentage: parseInt(e.target.value) || 0 }))}
+              />
+              {selectedSubjectForCut && (
+                <p className="text-sm text-gray-600">
+                  Porcentaje actual: {selectedSubjectForCut.cuts.reduce((sum, cut) => sum + cut.percentage, 0)}%
+                  {selectedSubjectForCut.cuts.reduce((sum, cut) => sum + cut.percentage, 0) > 0 && (
+                    <span className="text-blue-600 ml-2">
+                      (Máximo: {100 - selectedSubjectForCut.cuts.reduce((sum, cut) => sum + cut.percentage, 0)}%)
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cutDescription">Descripción (Opcional)</Label>
+              <Textarea
+                id="cutDescription"
+                placeholder="Descripción del corte académico"
+                value={newCut.description}
+                onChange={(e) => setNewCut(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => {
+                setNewCut({ title: '', percentage: 0, description: '' });
+                setShowAddCutDialog(false);
+                setSelectedSubjectForCut(null);
+              }}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => {
+                  console.log('🖱️ Botón Agregar Corte presionado');
+                  console.log('📋 Datos del corte:', newCut);
+                  console.log('📋 Materia seleccionada:', selectedSubjectForCut);
+
+                  if (newCut.title && newCut.percentage > 0) {
+                    console.log('✅ Validación pasada, llamando handleAddCut');
+                    handleAddCut(newCut);
+                  } else {
+                    console.log('❌ Validación falló:', {
+                      title: newCut.title,
+                      percentage: newCut.percentage
+                    });
+                  }
+                }}
+                disabled={
+                  !newCut.title ||
+                  newCut.percentage <= 0 ||
+                  (selectedSubjectForCut &&
+                    selectedSubjectForCut.cuts.reduce((sum, cut) => sum + cut.percentage, 0) + newCut.percentage > 100)
+                }
+              >
+                Agregar Corte
+              </Button>
+            </div>
+
           </DialogContent>
         </Dialog>
 
@@ -1959,17 +2412,17 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge 
+                        <Badge
                           variant={
                             goal.status === 'on-track' ? 'default' :
-                            goal.status === 'completed' ? 'secondary' : 'outline'
+                              goal.status === 'completed' ? 'secondary' : 'outline'
                           }
                         >
                           {goal.status === 'on-track' ? 'En progreso' :
-                           goal.status === 'completed' ? 'Completada' : 'Pendiente'}
+                            goal.status === 'completed' ? 'Completada' : 'Pendiente'}
                         </Badge>
-                        <Button 
-                          variant="ghost" 
+                        <Button
+                          variant="ghost"
                           size="sm"
                           onClick={() => handleEditGoal(goal)}
                         >
@@ -1980,7 +2433,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                         </Button>
                       </div>
                     </div>
-                    
+
                     <div>
                       <div className="flex justify-between text-sm mb-2">
                         <span>Progreso</span>
@@ -2005,7 +2458,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
               Define una nueva meta para tu desarrollo académico
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
             <div>
               <Label htmlFor="goal-title">Título de la meta</Label>
@@ -2016,7 +2469,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                 onChange={(e) => setNewGoal(prev => ({ ...prev, title: e.target.value }))}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="goal-description">Descripción</Label>
               <Textarea
@@ -2026,7 +2479,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                 onChange={(e) => setNewGoal(prev => ({ ...prev, description: e.target.value }))}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="goal-date">Fecha objetivo</Label>
               <Input
@@ -2036,7 +2489,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                 onChange={(e) => setNewGoal(prev => ({ ...prev, targetDate: e.target.value }))}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="goal-category">Categoría</Label>
               <Select
@@ -2055,7 +2508,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
               </Select>
             </div>
           </div>
-          
+
           <div className="flex gap-2 pt-4">
             <Button variant="outline" onClick={() => setShowAddGoalDialog(false)} className="flex-1">
               Cancelar
@@ -2076,14 +2529,14 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
               Actualiza el progreso y estado de tu meta académica
             </DialogDescription>
           </DialogHeader>
-          
+
           {editingGoal && (
             <div className="space-y-4">
               <div>
                 <h4 className="font-semibold">{editingGoal.title}</h4>
                 <p className="text-sm text-gray-600">{editingGoal.description}</p>
               </div>
-              
+
               <div>
                 <Label htmlFor="goal-progress">Progreso (%)</Label>
                 <Input
@@ -2095,7 +2548,7 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                   onChange={(e) => setGoalProgress(Number(e.target.value))}
                 />
               </div>
-              
+
               <div>
                 <Label htmlFor="goal-status">Estado</Label>
                 <Select value={goalStatus} onValueChange={(value: any) => setGoalStatus(value)}>
@@ -2110,17 +2563,17 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="flex gap-2 pt-4">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowEditGoalDialog(false)} 
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditGoalDialog(false)}
                   className="flex-1"
                 >
                   Cancelar
                 </Button>
-                <Button 
-                  onClick={handleUpdateGoalProgress} 
+                <Button
+                  onClick={handleUpdateGoalProgress}
                   className="flex-1"
                 >
                   Actualizar Progreso
@@ -2130,6 +2583,6 @@ export function AcademicManagementPage({ onNavigate }: AcademicManagementPagePro
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </div >
   );
 }

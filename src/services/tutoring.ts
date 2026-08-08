@@ -36,9 +36,9 @@ class TutoringService {
       // Primero intentar obtener tutores de Firebase
       const usersRef = ref(database, 'users');
       const snapshot = await get(usersRef);
-      
+
       let firebaseTutors: User[] = [];
-      
+
       if (snapshot.exists()) {
         const users = snapshot.val();
         Object.keys(users).forEach(userId => {
@@ -52,16 +52,72 @@ class TutoringService {
           }
         });
         console.log(`📊 Encontrados ${firebaseTutors.length} tutores en Firebase`);
+
+        // MIGRATION: Check if tutors need update to Reputation Economy
+        // This makes sure old "paid" tutors are converted to "points" tutors
+        for (const tutor of firebaseTutors) {
+          const anyTutor = tutor as any;
+          // MIGRATION: Auto-update if legacy money, missing points, low points (old system), or old rank names
+          const hasOldRank = ['Colaborador', 'Salvavidas', 'Comunitario'].includes(tutor.rank || '');
+          const hasLowPoints = (tutor.hourlyPoints || 0) < 10; // Old base was 5
+          const isLegacy = anyTutor.hourlyRate !== undefined || anyTutor.reputationPoints === undefined;
+
+          if (isLegacy || hasLowPoints || hasOldRank) {
+            console.log(`🔧 Actualizando tutor a nueva economía (Rank: ${tutor.rank}, PM: ${tutor.hourlyPoints}): ${tutor.name}`);
+
+            const BADGE_RULES = [
+              { id: 'novice', min: 0, name: 'Novato' },               // Nivel 0 -> 10 PM
+              { id: 'monitor_jr', min: 100, name: 'Monitor Junior' }, // Nivel 1 -> 15 PM
+              { id: 'monitor_sr', min: 200, name: 'Monitor Senior' }, // Nivel 2 -> 20 PM
+              { id: 'maestro', min: 300, name: 'Maestro' },           // Nivel 3 -> 25 PM
+              { id: 'expert', min: 500, name: 'Experto' },            // Nivel 4 -> 30 PM
+              { id: 'erudite', min: 800, name: 'Erudito' },           // Nivel 5 -> 35 PM
+              { id: 'legend', min: 1000, name: 'Leyenda' }            // Nivel 6 -> 40 PM
+            ];
+
+            // Assign random points appropriate for an active tutor
+            const reputationPoints = Math.floor(Math.random() * 1000) + 50;
+
+            const earnedBadges = BADGE_RULES.filter(b => b.min <= reputationPoints);
+            const badges = earnedBadges.map(b => b.id);
+            const highestBadge = earnedBadges[earnedBadges.length - 1] || BADGE_RULES[0];
+            const rank = highestBadge.name;
+            const rankIndex = BADGE_RULES.findIndex(b => b.id === highestBadge.id);
+
+            // Formula: Base 10 + 5 PM per level (Regla del Usuario)
+            const hourlyPoints = 10 + (rankIndex * 5);
+
+            const updates = {
+              reputationPoints,
+              badges,
+              rank,
+              hourlyPoints,
+              hourlyRate: null // Remove old monetary rate
+            };
+
+            try {
+              // Update Firebase
+              const tutorRef = ref(database, `users/${tutor.id}`);
+              await update(tutorRef, updates);
+
+              // Update local object so UI reflects it immediately
+              Object.assign(tutor, updates);
+              delete anyTutor.hourlyRate;
+            } catch (err) {
+              console.error("Error migrando tutor:", err);
+            }
+          }
+        }
       }
-      
+
       // Si hay menos de 50 tutores, crear tutores mock en Firebase (solo una vez)
       if (firebaseTutors.length < 50) {
         const tutoresNecesarios = 50 - firebaseTutors.length;
         console.log(`🎯 Creando ${tutoresNecesarios} tutores mock en Firebase...`);
-        
+
         const mockTutors = this.generateMockTutors();
         const tutoresParaCrear = mockTutors.slice(0, tutoresNecesarios);
-        
+
         // Crear cada tutor mock en Firebase
         for (const tutor of tutoresParaCrear) {
           try {
@@ -76,25 +132,25 @@ class TutoringService {
             console.error(`❌ Error creando tutor ${tutor.name}:`, error);
           }
         }
-        
+
         // Recargar tutores después de crear los mock
         const newSnapshot = await get(usersRef);
         if (newSnapshot.exists()) {
           const users = newSnapshot.val();
           firebaseTutors = [];
-      Object.keys(users).forEach(userId => {
-        const userData = users[userId];
-        if (userData.subjects && userData.subjects.length > 0) {
+          Object.keys(users).forEach(userId => {
+            const userData = users[userId];
+            if (userData.subjects && userData.subjects.length > 0) {
               firebaseTutors.push({
-            ...userData,
-            createdAt: new Date(userData.createdAt),
-            updatedAt: userData.updatedAt ? new Date(userData.updatedAt) : undefined,
+                ...userData,
+                createdAt: new Date(userData.createdAt),
+                updatedAt: userData.updatedAt ? new Date(userData.updatedAt) : undefined,
+              });
+            }
           });
         }
-      });
-        }
       }
-      
+
       console.log(`🎯 Total: ${firebaseTutors.length} tutores disponibles para búsqueda`);
       return firebaseTutors;
 
@@ -102,179 +158,119 @@ class TutoringService {
       console.error('Error getting tutors:', error);
       // Si hay error, usar solo datos mock
       console.log('⚠️ Error con Firebase, usando solo datos mock');
-        return this.getMockTutors();
-      }
+      return this.getMockTutors();
+    }
   }
 
   // Función para generar tutores dinámicamente
   private generateMockTutors(): User[] {
     const nombres = [
       "María", "Carlos", "Ana", "David", "Lucía", "Santiago", "Valentina", "Andrés", "Camila", "Diego",
-      "Isabella", "Sebastián", "Sofía", "Nicolás", "Valeria", "Alejandro", "Gabriela", "Mateo", "Natalia", "Daniel",
-      "Mariana", "Felipe", "Alejandra", "Juan", "Paola", "Cristian", "Laura", "Jorge", "Andrea", "Ricardo",
-      "Carolina", "Fernando", "Diana", "Luis", "Claudia", "Roberto", "Patricia", "Eduardo", "Mónica", "Héctor",
-      "Gloria", "Alberto", "Rosa", "Miguel", "Carmen", "Antonio", "Teresa", "Francisco", "Elena", "Manuel"
+      "Isabella", "Sebastián", "Sofía", "Nicolás", "Valeria", "Alejandro", "Gabriela", "Mateo", "Natalia", "Daniel"
     ];
 
     const apellidos = [
       "Rodríguez", "García", "López", "Martínez", "González", "Pérez", "Sánchez", "Ramírez", "Cruz", "Flores",
-      "Rivera", "Gómez", "Díaz", "Reyes", "Morales", "Jiménez", "Álvarez", "Ruiz", "Herrera", "Medina",
-      "Vargas", "Castillo", "Romero", "Moreno", "Muñoz", "Delgado", "Ortiz", "Vega", "Rojas", "Mendoza",
-      "Guerrero", "Ramos", "Herrera", "Jiménez", "Espinoza", "Silva", "Torres", "Vásquez", "Castro", "Molina"
+      "Rivera", "Gómez", "Díaz", "Reyes", "Morales", "Jiménez", "Álvarez", "Ruiz", "Herrera", "Medina"
     ];
 
     const ciudades = [
-      "Bogotá, D.C.", "Medellín, Antioquia", "Cali, Valle del Cauca", "Barranquilla, Atlántico", 
-      "Cartagena, Bolívar", "Bucaramanga, Santander", "Pereira, Risaralda", "Santa Marta, Magdalena",
-      "Ibagué, Tolima", "Manizales, Caldas", "Villavicencio, Meta", "Pasto, Nariño", "Armenia, Quindío",
-      "Neiva, Huila", "Cúcuta, Norte de Santander"
+      "Bogotá, D.C.", "Medellín, Antioquia", "Cali, Valle del Cauca", "Barranquilla, Atlántico",
+      "Cartagena, Bolívar", "Bucaramanga, Santander", "Pereira, Risaralda"
     ];
 
     // Perfiles especializados con materias coherentes
     const perfilesEspecializados = [
       {
         nombre: "Matemático",
-        materias: ["Matemáticas", "Cálculo", "Álgebra", "Geometría", "Estadística", "Trigonometría"],
-        educacion: ["Licenciado en Matemáticas", "Doctor en Matemáticas", "Magíster en Matemáticas"]
+        materias: ["Matemáticas", "Cálculo", "Álgebra", "Geometría", "Estadística"],
+        educacion: ["Licenciado en Matemáticas", "Doctor en Matemáticas"]
       },
       {
         nombre: "Físico",
-        materias: ["Física", "Física Cuántica", "Mecánica", "Termodinámica", "Óptica", "Electricidad"],
-        educacion: ["Físico", "Doctor en Física", "Ingeniero Físico"]
-      },
-      {
-        nombre: "Químico",
-        materias: ["Química", "Química Orgánica", "Química Inorgánica", "Bioquímica", "Fisicoquímica"],
-        educacion: ["Químico", "Doctor en Química", "Ingeniero Químico"]
-      },
-      {
-        nombre: "Biólogo",
-        materias: ["Biología", "Biología Molecular", "Genética", "Anatomía", "Fisiología", "Ecología"],
-        educacion: ["Biólogo", "Doctor en Biología", "Microbiólogo"]
+        materias: ["Física", "Mecánica", "Termodinámica", "Óptica"],
+        educacion: ["Físico", "Doctor en Física"]
       },
       {
         nombre: "Programador",
-        materias: ["Programación", "Python", "Java", "JavaScript", "React", "Node.js", "Algoritmos"],
-        educacion: ["Ingeniero de Sistemas", "Ingeniero de Software", "Desarrollador Full Stack"]
+        materias: ["Programación", "Python", "Java", "React", "Algoritmos"],
+        educacion: ["Ingeniero de Sistemas", "Desarrollador Full Stack"]
       },
       {
-        nombre: "Lingüista",
-        materias: ["Inglés", "Francés", "Alemán", "Literatura", "Gramática", "Conversación"],
-        educacion: ["Licenciado en Idiomas", "Filólogo", "Traductor"]
-      },
-      {
-        nombre: "Historiador",
-        materias: ["Historia", "Geografía", "Ciencias Sociales", "Filosofía", "Política"],
-        educacion: ["Historiador", "Licenciado en Historia", "Antropólogo"]
-      },
-      {
-        nombre: "Psicólogo",
-        materias: ["Psicología", "Psicología Educativa", "Desarrollo Humano", "Terapia"],
-        educacion: ["Psicólogo", "Psicólogo Educativo", "Terapeuta"]
-      },
-      {
-        nombre: "Economista",
-        materias: ["Economía", "Contabilidad", "Finanzas", "Administración", "Estadística"],
-        educacion: ["Economista", "Contador", "Administrador de Empresas"]
-      },
-      {
-        nombre: "Médico",
-        materias: ["Medicina", "Anatomía", "Fisiología", "Biología", "Química"],
-        educacion: ["Médico", "Doctor en Medicina", "Especialista Médico"]
-      },
-      {
-        nombre: "Arquitecto",
-        materias: ["Arquitectura", "Dibujo Técnico", "Matemáticas", "Física", "Diseño"],
-        educacion: ["Arquitecto", "Diseñador", "Ingeniero Civil"]
-      },
-      {
-        nombre: "Preparador de Exámenes",
-        materias: ["Preparación ICFES", "Preparación TOEFL", "Preparación IELTS", "SAT", "GRE", "GMAT"],
-        educacion: ["Licenciado en Educación", "Magíster en Educación", "Especialista en Evaluación"]
+        nombre: "Inglés",
+        materias: ["Inglés", "Gramática", "Conversación", "TOEFL"],
+        educacion: ["Licenciado en Idiomas", "Traductor"]
       }
     ];
 
-    const nivelesEducacion = [
-      "Licenciado en Matemáticas", "Ingeniero de Sistemas", "Físico", "Químico", "Psicólogo", "Economista",
-      "Abogado", "Médico", "Arquitecto", "Licenciado en Literatura", "Historiador", "Filósofo",
-      "Ingeniero Químico", "Ingeniero Civil", "Ingeniero Industrial", "Psicólogo Educativo",
-      "Doctor en Física", "Doctor en Química", "Doctor en Matemáticas", "Magíster en Educación",
-      "Especialista en Data Science", "Especialista en Desarrollo Web", "Especialista en UX/UI"
-    ];
-
     const experiencias = [
-      "5 años enseñando en universidades", "8 años de experiencia docente", "10 años enseñando de forma privada",
-      "6 años en colegios y universidades", "7 años especializado en tutorías", "12 años de experiencia académica",
-      "4 años enseñando online", "9 años en educación superior", "11 años de experiencia docente",
-      "3 años especializado en preparación de exámenes", "6 años en empresas de tecnología",
-      "8 años de experiencia internacional", "5 años en investigación académica"
+      "5 años enseñando", "3 años de experiencia", "Experto académico", "Profesor universitario"
     ];
 
     const tutores = [];
 
-    // Generar 50 tutores con perfiles especializados
+    // Importar BADGES si es posible, si no, definir lógica local para evitar ciclos si los hubiera (aquí definimos local para seguridad en el prompt block)
+    const BADGE_RULES = [
+      { id: 'novice', min: 0, name: 'Novato' },
+      { id: 'contributor', min: 100, name: 'Colaborador' },
+      { id: 'savior', min: 200, name: 'Salvavidas' },
+      { id: 'community', min: 300, name: 'Comunitario' },
+      { id: 'expert', min: 500, name: 'Experto' },
+      { id: 'erudite', min: 800, name: 'Erudito' },
+      { id: 'master', min: 1000, name: 'Maestro' }
+    ];
+
+    // Generar 50 tutores
     for (let i = 0; i < 50; i++) {
       const nombre = nombres[Math.floor(Math.random() * nombres.length)];
       const apellido = apellidos[Math.floor(Math.random() * apellidos.length)];
       const ciudad = ciudades[Math.floor(Math.random() * ciudades.length)];
-      
-      // Seleccionar un perfil especializado
-      const perfilSeleccionado = perfilesEspecializados[Math.floor(Math.random() * perfilesEspecializados.length)];
-      
-      // Seleccionar 2-3 materias del perfil (más coherentes)
-      const numMaterias = Math.floor(Math.random() * 2) + 2; // 2-3 materias
-      const materiasSeleccionadas = [];
-      const materiasDisponibles = [...perfilSeleccionado.materias];
-      
-      for (let j = 0; j < numMaterias; j++) {
-        const materiaIndex = Math.floor(Math.random() * materiasDisponibles.length);
-        materiasSeleccionadas.push(materiasDisponibles[materiaIndex]);
-        materiasDisponibles.splice(materiaIndex, 1);
-      }
-      
-      // Seleccionar educación coherente con el perfil
-      const nivelEducacion = perfilSeleccionado.educacion[Math.floor(Math.random() * perfilSeleccionado.educacion.length)];
+      const perfil = perfilesEspecializados[Math.floor(Math.random() * perfilesEspecializados.length)];
       const experiencia = experiencias[Math.floor(Math.random() * experiencias.length)];
-      
-      // Generar tarifa por hora (30,000 - 80,000 COP)
-      const tarifaBase = 30000 + Math.floor(Math.random() * 50000);
-      
-      // Generar rating (4.0 - 5.0)
-      const rating = 4.0 + Math.random();
-      
-      // Generar número de reseñas (5 - 50)
-      const numResenas = 5 + Math.floor(Math.random() * 46);
-      
-      // Generar sesiones totales (20 - 200)
-      const sesionesTotales = 20 + Math.floor(Math.random() * 181);
-      
-      // Generar fechas
-      const fechaCreacion = new Date(2024, Math.floor(Math.random() * 10), Math.floor(Math.random() * 28) + 1);
-      const fechaActualizacion = new Date();
-      const ultimaActividad = new Date(Date.now() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000));
-      
+
+      // Generar puntos de reputación aleatorios (0 - 1500)
+      const reputationPoints = Math.floor(Math.random() * 1500);
+
+      // Calcular Badges correspondientes
+      const earnedBadges = BADGE_RULES.filter(b => b.min <= reputationPoints);
+      const badges = earnedBadges.map(b => b.id);
+
+      // Rango basado en el badge más alto
+      const highestBadge = earnedBadges[earnedBadges.length - 1] || BADGE_RULES[0];
+      const rank = highestBadge.name;
+
+      // Tarifa Solidaria: Base 5 + 2 por cada 100 puntos (Topes razonables)
+      // Ejemplo: 0 pts = 5, 500 pts = 15, 1000 pts = 25
+      const hourlyPoints = 5 + Math.floor(reputationPoints / 100) * 2;
+
+      const numMaterias = Math.floor(Math.random() * 3) + 1;
+      const materias = perfil.materias.slice(0, numMaterias);
+
       tutores.push({
         id: `mock-${i + 1}`,
         name: `${nombre} ${apellido}`,
-        email: `${nombre.toLowerCase()}.${apellido.toLowerCase()}${i + 1}@tutorapp.com`,
-        avatar: `https://images.unsplash.com/photo-${1500000000000 + Math.floor(Math.random() * 1000000000)}?w=150&h=150&fit=crop&crop=face`,
-        bio: `${nivelEducacion} con ${experiencia}. Especialista en ${perfilSeleccionado.nombre.toLowerCase()} con enfoque en ${materiasSeleccionadas.slice(0, 2).join(' y ')}. ${Math.random() > 0.5 ? 'Experiencia en educación virtual y presencial.' : 'Enfoque personalizado según las necesidades del estudiante.'}`,
-        subjects: materiasSeleccionadas,
-        education: nivelEducacion,
+        email: `tutor${i + 1}@example.com`,
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${i}`,
+        bio: `${perfil.educacion[0]} con ${experiencia}.`,
+        subjects: materias,
+        education: perfil.educacion[0],
         location: ciudad,
-        hourlyRate: tarifaBase,
-        rating: Math.round(rating * 10) / 10,
+        hourlyPoints: hourlyPoints,
+        rating: (4 + Math.random()).toFixed(1), // String or number handling depending on types, ensuring number mostly
         availability: true,
         currentMode: 'tutor' as const,
-        totalReviews: numResenas,
+        totalReviews: Math.floor(Math.random() * 50),
         experience: experiencia,
         preferredSubjects: [],
-        createdAt: fechaCreacion,
-        updatedAt: fechaActualizacion
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        rank: rank,
+        badges: badges,
+        reputationPoints: reputationPoints
       });
     }
 
-    return tutores;
+    return tutores as User[];
   }
 
   // Datos mock expandidos para cuando Firebase no esté configurado
@@ -299,7 +295,7 @@ class TutoringService {
   }): Promise<User[]> {
     try {
       const allTutors = await this.getTutors();
-      
+
       let filteredTutors = allTutors;
 
       // Búsqueda por texto (nombre, materia, descripción) - Mejorada para ignorar tildes y mayúsculas
@@ -361,7 +357,7 @@ class TutoringService {
 
   // Obtener materias disponibles
   getSubjects(): Subject[] {
-        return defaultSubjects;
+    return defaultSubjects;
   }
 
   // Crear solicitud de tutoría
@@ -369,7 +365,7 @@ class TutoringService {
     try {
       const requestRef = ref(database, 'requests');
       const newRequestRef = push(requestRef);
-      
+
       const request: TutorRequest = {
         id: newRequestRef.key!,
         ...requestData,
@@ -408,14 +404,14 @@ class TutoringService {
       console.log('🔍 getUserRequests - Iniciando búsqueda para:', userId);
       console.log('📱 Entorno móvil:', Capacitor.isNativePlatform());
       console.log('🌐 Plataforma:', Capacitor.getPlatform());
-      
+
       // Usar servicio unificado
       const { TutoringUnifiedService } = await import('./tutoring-unified');
       const userRequests = await TutoringUnifiedService.getUserRequests(userId);
-      
+
       console.log('✅ Solicitudes obtenidas para el usuario:', userRequests.length);
       console.log('📋 Solicitudes del usuario:', userRequests.map(r => ({ id: r.id, subject: r.subject, status: r.status })));
-      
+
       return userRequests.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     } catch (error) {
       console.error('❌ Error getting user requests:', error);
@@ -430,7 +426,7 @@ class TutoringService {
     const now = new Date();
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    
+
     return [
       {
         id: 'mock-request-1',
@@ -521,40 +517,58 @@ class TutoringService {
     ];
   }
 
-// Crear solicitud de tutoría (alias para createTutorRequest)
-async createRequest(requestData: Omit<TutorRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<TutorRequest> {
-  try {
-    console.log('🔍 createRequest - Creando solicitud:', requestData);
-    
-    // Usar servicio unificado
-    const { TutoringUnifiedService } = await import('./tutoring-unified');
-    const request = await TutoringUnifiedService.createRequest(requestData);
-    
-    // Enviar notificación al tutor
-    await notificationsService.createNotification({
-      id: `notif_${Date.now()}`,
-      userId: requestData.tutorId,
-      type: 'tutor_request',
-      title: 'Nueva solicitud de tutoría',
-      message: `${requestData.studentName} te ha enviado una solicitud de ${requestData.subject}`,
-      data: { requestId: request.id },
-      read: false,
-      createdAt: new Date()
-    });
-    
-    console.log('✅ Solicitud creada exitosamente:', request.id);
-    return request;
-  } catch (error) {
-    console.error('❌ Error creating request:', error);
-    throw new Error('Error al crear solicitud de tutoría');
+  // Crear solicitud de tutoría (alias para createTutorRequest)
+  async createRequest(requestData: Omit<TutorRequest, 'id' | 'createdAt' | 'updatedAt'>): Promise<TutorRequest> {
+    try {
+      console.log('🔍 createRequest - Creando solicitud:', requestData);
+
+      // Usar servicio unificado
+      const { TutoringUnifiedService } = await import('./tutoring-unified');
+      const request = await TutoringUnifiedService.createRequest(requestData);
+
+      // Enviar notificación al tutor
+      await notificationsService.createNotification({
+        id: `notif_${Date.now()}`,
+        userId: requestData.tutorId,
+        type: 'tutor_request',
+        title: 'Nueva solicitud de tutoría',
+        message: `${requestData.studentName} te ha enviado una solicitud de ${requestData.subject}`,
+        data: { requestId: request.id },
+        read: false,
+        createdAt: new Date()
+      });
+
+      console.log('✅ Solicitud creada exitosamente:', request.id);
+      return request;
+    } catch (error) {
+      console.error('❌ Error creating request:', error);
+      throw new Error('Error al crear solicitud de tutoría');
+    }
   }
-}
+
+  // Actualizar cualquier campo de la solicitud
+  async updateRequest(requestId: string, updates: Partial<TutorRequest>): Promise<void> {
+    try {
+      console.log('🔍 updateRequest - Actualizando solicitud:', requestId, 'con:', updates);
+
+      const requestRef = ref(database, `requests/${requestId}`);
+      await update(requestRef, {
+        ...updates,
+        updatedAt: new Date().toISOString()
+      });
+
+      console.log('✅ Solicitud actualizada exitosamente');
+    } catch (error) {
+      console.error('❌ Error updating request:', error);
+      throw new Error('Error al actualizar la solicitud');
+    }
+  }
 
   // Actualizar estado de solicitud
   async updateRequestStatus(requestId: string, status: string, tutorId?: string): Promise<void> {
     try {
       console.log('🔍 updateRequestStatus - Actualizando solicitud:', requestId, 'a estado:', status);
-      
+
       // Usar servicio unificado
       const { TutoringUnifiedService } = await import('./tutoring-unified');
       await TutoringUnifiedService.updateRequestStatus(requestId, status, tutorId);
@@ -572,7 +586,7 @@ async createRequest(requestData: Omit<TutorRequest, 'id' | 'createdAt' | 'update
           createdAt: new Date()
         });
       }
-      
+
       console.log('✅ Estado de solicitud actualizado exitosamente');
     } catch (error) {
       console.error('❌ Error updating request status:', error);

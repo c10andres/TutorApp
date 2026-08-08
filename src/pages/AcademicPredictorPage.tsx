@@ -21,9 +21,9 @@ const BarChart = ({ children, data, className = "" }: any) => {
       </div>
     </div>;
   }
-  
+
   const maxValue = Math.max(...data.map((d: any) => d.value || 0));
-  
+
   return (
     <div className={`w-full h-full ${className}`}>
       <div className="flex items-end justify-between h-full space-x-1">
@@ -31,7 +31,7 @@ const BarChart = ({ children, data, className = "" }: any) => {
           const height = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
           return (
             <div key={index} className="flex flex-col items-center flex-1 group relative">
-              <div 
+              <div
                 className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all duration-500 hover:from-blue-600 hover:to-blue-500 cursor-pointer"
                 style={{ height: `${height}%`, minHeight: '4px' }}
                 title={`${item.name}: ${item.value.toFixed(2)}`}
@@ -60,11 +60,11 @@ const LineChart = ({ data, className = "" }: any) => {
       </div>
     </div>;
   }
-  
+
   const maxValue = Math.max(...data.map((d: any) => d.value || 0));
   const minValue = Math.min(...data.map((d: any) => d.value || 0));
   const range = maxValue - minValue;
-  
+
   return (
     <div className={`w-full h-full ${className}`}>
       <svg viewBox="0 0 400 200" className="w-full h-full">
@@ -112,12 +112,12 @@ const PieChart = ({ data, className = "" }: any) => {
       </div>
     </div>;
   }
-  
+
   const total = data.reduce((sum: number, item: any) => sum + item.value, 0);
   let cumulativePercentage = 0;
-  
+
   const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-  
+
   return (
     <div className={`w-full h-full ${className}`}>
       <svg viewBox="0 0 200 200" className="w-full h-full">
@@ -125,12 +125,12 @@ const PieChart = ({ data, className = "" }: any) => {
           const percentage = (item.value / total) * 100;
           const startAngle = (cumulativePercentage / 100) * 360;
           const endAngle = ((cumulativePercentage + percentage) / 100) * 360;
-          
+
           const x1 = 100 + 80 * Math.cos((startAngle - 90) * Math.PI / 180);
           const y1 = 100 + 80 * Math.sin((startAngle - 90) * Math.PI / 180);
           const x2 = 100 + 80 * Math.cos((endAngle - 90) * Math.PI / 180);
           const y2 = 100 + 80 * Math.sin((endAngle - 90) * Math.PI / 180);
-          
+
           const largeArcFlag = percentage > 50 ? 1 : 0;
           const pathData = [
             `M 100 100`,
@@ -138,9 +138,9 @@ const PieChart = ({ data, className = "" }: any) => {
             `A 80 80 0 ${largeArcFlag} 1 ${x2} ${y2}`,
             'Z'
           ].join(' ');
-          
+
           cumulativePercentage += percentage;
-          
+
           return (
             <path
               key={index}
@@ -155,8 +155,8 @@ const PieChart = ({ data, className = "" }: any) => {
   );
 };
 
-import { 
-  TrendingUp, TrendingDown, Brain, Target, AlertTriangle, CheckCircle, 
+import {
+  TrendingUp, TrendingDown, Brain, Target, AlertTriangle, CheckCircle,
   BookOpen, Calendar, Clock, Award, Zap, Eye, RefreshCw, Download,
   Star, Users, BarChart3, Activity, MessageSquare, ArrowUp, ArrowDown
 } from 'lucide-react';
@@ -164,6 +164,8 @@ import { academicService } from '../services/academic';
 import { academicFirebaseService, FirebaseSemester, FirebaseSubject } from '../services/academic-firebase';
 import { usersService } from '../services/users';
 import { useAcademicCalculations } from '../hooks/useAcademicCalculations';
+import { Semester, User, AcademicSubject } from '../types';
+import { academicPredictorML } from '../services/ml/AcademicPredictorML';
 
 interface AcademicPredictorPageProps {
   onNavigate: (page: string, data?: any) => void;
@@ -196,7 +198,7 @@ interface AcademicRisk {
 interface GPAData {
   current: number;
   predicted: number;
-  trend: 'up' | 'down';
+  trend: 'up' | 'down' | 'stable';
 }
 
 interface FilterOptions {
@@ -227,7 +229,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [modelTraining, setModelTraining] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState(0);
-  
+
   // Nuevos estados para mejoras
   const [filters, setFilters] = useState<FilterOptions>({
     semester: 'all',
@@ -247,7 +249,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
   // Generar recomendaciones personalizadas basadas en los datos del usuario
   const generatePersonalizedRecommendations = (predictions: PredictionData[], risks: AcademicRisk[]) => {
     const recs: Recommendation[] = [];
-    
+
     // Recomendaciones basadas en predicciones de bajo rendimiento
     const lowPerformanceSubjects = predictions.filter(p => p.predictedGrade < 3.0);
     if (lowPerformanceSubjects.length > 0) {
@@ -381,7 +383,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
     setLoading(true);
     try {
       console.log('🔍 Cargando datos académicos reales desde Firebase para:', user?.id);
-      
+
       if (!user) {
         throw new Error('Usuario no autenticado');
       }
@@ -391,7 +393,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         academicFirebaseService.getUserSemesters(user.id),
         academicFirebaseService.getUserGoals(user.id)
       ]);
-      
+
       console.log('📊 Datos académicos cargados desde Firebase:', {
         semestersCount: firebaseSemesters.length,
         goalsCount: firebaseGoals.length,
@@ -414,29 +416,29 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       if (firebaseSemesters.length > 0) {
         console.log('✅ Usando datos reales de Firebase para análisis académico');
         console.log('🔍 Verificando si hay datos mock en los semestres...');
-        
+
         // Verificar si hay materias con datos reales
         const activeSemester = firebaseSemesters.find(s => s.isActive) || firebaseSemesters[firebaseSemesters.length - 1];
         const hasRealData = activeSemester?.subjects && activeSemester.subjects.length > 0;
-        
+
         if (!hasRealData) {
           console.warn('⚠️ El semestre activo no tiene materias');
           setPredictions([]);
           setAcademicRisks([]);
           setStudyPatterns([]);
           setRecommendations([]);
-          setGpaData({ current: 0, target: 0, trend: 'stable' });
+          setOverallGPA({ current: 0, predicted: 0, trend: 'stable' });
         } else {
           console.log(`✅ Semestre activo tiene ${activeSemester.subjects.length} materias`);
           // Entrenar modelo con datos reales
           await trainModelWithRealData(firebaseSemesters, firebaseGoals);
-          
+
           // Usar datos reales de Firebase para predicciones
           await generateRealPredictionsFromFirebase(firebaseSemesters, firebaseGoals);
           await generateRealStudyPatternsFromFirebase(firebaseSemesters);
           await generateRealRisksFromFirebase(firebaseSemesters, firebaseGoals);
           await generateRealGPAFromFirebase(firebaseSemesters);
-          
+
           // Generar recomendaciones personalizadas después de cargar todos los datos
           setTimeout(() => {
             const personalizedRecs = generatePersonalizedRecommendations(predictions, academicRisks);
@@ -447,15 +449,15 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         console.warn('⚠️ No hay datos académicos suficientes');
         console.warn('⚠️ Razón: firebaseSemesters.length =', firebaseSemesters.length);
         console.warn('⚠️ Por favor, añade semestres y materias en la página de gestión académica');
-        
+
         // NO usar datos mock - simplemente dejar arrays vacíos
         setPredictions([]);
         setAcademicRisks([]);
         setStudyPatterns([]);
         setRecommendations([]);
-        setGpaData({ current: 0, target: 0, trend: 'stable' });
+        setOverallGPA({ current: 0, predicted: 0, trend: 'stable' });
       }
-      
+
       setAnalysisComplete(true);
     } catch (error) {
       console.error('❌ Error loading academic data from Firebase:', error);
@@ -464,7 +466,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       setAcademicRisks([]);
       setStudyPatterns([]);
       setRecommendations([]);
-      setGpaData({ current: 0, target: 0, trend: 'stable' });
+      setOverallGPA({ current: 0, predicted: 0, trend: 'stable' });
       setAnalysisComplete(true);
     } finally {
       setLoading(false);
@@ -477,7 +479,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       setModelTraining(true);
       setTrainingProgress(0);
       console.log('🧠 Iniciando entrenamiento del modelo de IA...');
-      
+
       // Simular progreso de entrenamiento
       const progressInterval = setInterval(() => {
         setTrainingProgress(prev => {
@@ -485,22 +487,22 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
           return prev + Math.random() * 10;
         });
       }, 200);
-      
+
       // Importar el servicio ML
       const { academicPredictorML } = await import('../services/ml/AcademicPredictorML');
-      
+
       // Preparar datos de entrenamiento con estructura correcta
       const trainingData = firebaseSemesters.map(semester => {
         const subjects = semester.subjects || [];
         const totalCredits = subjects.reduce((sum, subject) => sum + (subject.credits || 0), 0);
-        const averageGrade = subjects.length > 0 
+        const averageGrade = subjects.length > 0
           ? subjects.reduce((sum, subject) => sum + (subject.currentAverage || subject.finalGrade || 0), 0) / subjects.length
           : 0;
 
         // Calcular porcentaje completado basado en cortes académicos
         const completedPercentage = calculateCompletedPercentage(subjects);
         const remainingPercentage = 100 - completedPercentage;
-        
+
         return {
           features: {
             currentGPA: averageGrade,
@@ -525,24 +527,24 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
 
       console.log('📊 Datos de entrenamiento preparados:', trainingData.length, 'semestres');
       setTrainingProgress(30);
-      
+
       // Entrenar el modelo
       await academicPredictorML.trainModel(trainingData);
-      
+
       clearInterval(progressInterval);
       setTrainingProgress(100);
-      
+
       console.log('✅ Modelo entrenado exitosamente con datos reales');
-      
+
       // Actualizar estado para mostrar que el modelo está entrenado
       setAnalysisComplete(true);
-      
+
       // Resetear estados de entrenamiento después de un breve delay
       setTimeout(() => {
         setModelTraining(false);
         setTrainingProgress(0);
       }, 1000);
-      
+
     } catch (error) {
       console.error('❌ Error entrenando modelo:', error);
       setModelTraining(false);
@@ -583,7 +585,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
   const generateRealPredictionsFromFirebase = async (firebaseSemesters: FirebaseSemester[], firebaseGoals: any[]) => {
     try {
       console.log('🤖 Generando predicciones reales con ML...');
-      
+
       // Obtener semestre activo
       const activeSemester = firebaseSemesters.find(s => s.isActive) || firebaseSemesters[firebaseSemesters.length - 1];
       if (!activeSemester || !activeSemester.subjects || activeSemester.subjects.length === 0) {
@@ -593,7 +595,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       }
 
       const predictions: PredictionData[] = [];
-      
+
       // Calcular GPA promedio de todos los semestres
       const allSubjects = firebaseSemesters.flatMap(s => s.subjects || []);
       const totalCredits = allSubjects.reduce((sum, s) => sum + s.credits, 0);
@@ -602,16 +604,26 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         return sum + (grade * s.credits);
       }, 0);
       const averageGPA = totalCredits > 0 ? weightedSum / totalCredits : 0;
-      
+
       for (const subject of activeSemester.subjects) {
         try {
           // Preparar características para el ML basadas en datos reales
+          // Calcular nota actual precisa usando la función auxiliar
+          const currentGrade = calculateRealAverage(subject);
+
+          // Generar varianza determinista basada en el nombre de la materia
+          const nameVariance = subject.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          const attendanceVar = 0.85 + (nameVariance % 15) / 100; // 0.85 - 0.99
+          const studyHoursVar = 10 + (nameVariance % 20); // 10 - 29
+          const completionVar = 0.7 + (nameVariance % 25) / 100; // 0.7 - 0.94
+
+          // Preparar características para el ML basadas en datos reales
           const features = {
-            currentGPA: averageGPA,
-            attendanceRate: subject.attendanceRate || 0.9,
-            studyHours: subject.studyHours || 15,
-            assignmentCompletion: subject.assignmentCompletion || 0.8,
-            examPerformance: subject.currentAverage || subject.finalGrade || 0,
+            currentGPA: currentGrade > 0 ? currentGrade : averageGPA,
+            attendanceRate: subject.attendanceRate || attendanceVar,
+            studyHours: subject.studyHours || studyHoursVar,
+            assignmentCompletion: subject.assignmentCompletion || completionVar,
+            examPerformance: subject.currentAverage || subject.finalGrade || (currentGrade / 5.0),
             subjectDifficulty: subject.difficulty || 0.5,
             timeManagement: subject.timeManagement || 0.7,
             previousSemesterGPA: averageGPA,
@@ -623,26 +635,29 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
           const { academicPredictorML } = await import('../services/ml/AcademicPredictorML');
           const prediction = await academicPredictorML.predictAcademicPerformance(
             user!,
-            activeSemester,
+            {
+              ...activeSemester,
+              totalCredits: activeSemester.subjects?.reduce((sum, s) => sum + (s.credits || 0), 0) || 0
+            } as unknown as Semester,
             features
           );
 
-          // Calcular currentGrade usando la función auxiliar
-          const currentGrade = calculateRealAverage(subject);
-          
+          // Calcular currentGrade usando la función auxiliar (ya calculado arriba)
+          // const currentGrade = calculateRealAverage(subject);
+
           console.log(`📊 ${subject.name}:`, {
             currentAverage: subject.currentAverage,
             hasCuts: !!(subject.cuts && subject.cuts.length > 0),
             calculatedGrade: currentGrade
           });
-          
+
           // Limitar la predicción a un rango realista (0-5.0)
           const rawPredicted = prediction.predictedGPA || 0;
           const predictedGrade = Math.min(5.0, Math.max(0, Math.round(rawPredicted * 10) / 10));
-          
+
           // Calcular riskLevel usando la función del hook
           const riskLevel = determineRiskLevel(currentGrade);
-          
+
           // Debug: Verificar predicción real con cortes
           console.log(`🔍 Real Prediction para ${subject.name}:`, {
             cuts: subject.cuts,
@@ -652,22 +667,22 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
             predictedGrade,
             prediction: prediction
           });
-          
+
           // Calcular información de porcentajes para esta materia
           const subjectCuts = subject.cuts || [];
           const completedCuts = subjectCuts.filter(cut => cut.grade && cut.grade > 0);
           const completedPercentage = completedCuts.reduce((sum, cut) => sum + (cut.percentage || 0), 0);
           const remainingPercentage = 100 - completedPercentage;
-          
+
           const finalCurrentGrade = Math.round(currentGrade * 10) / 10;
-          
+
           console.log(`✅ GUARDANDO PREDICCIÓN para ${subject.name}:`, {
             currentGrade: finalCurrentGrade,
             predictedGrade,
             improvement: Math.round((predictedGrade - currentGrade) * 10) / 10,
             riskLevel
           });
-          
+
           predictions.push({
             subject: subject.name,
             currentGrade: finalCurrentGrade, // Redondear a 1 decimal
@@ -685,21 +700,21 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
 
         } catch (error) {
           console.warn(`⚠️ Error prediciendo ${subject.name}:`, error);
-          
+
           // Fallback a predicción básica - usar la función auxiliar
           const currentGrade = calculateRealAverage(subject);
-          
+
           const predictedGrade = currentGrade + (Math.random() - 0.3) * 0.5;
-          
+
           // Calcular información de porcentajes para fallback
           const subjectCuts = subject.cuts || [];
           const completedCuts = subjectCuts.filter(cut => cut.grade && cut.grade > 0);
           const completedPercentage = completedCuts.reduce((sum, cut) => sum + (cut.percentage || 0), 0);
           const remainingPercentage = 100 - completedPercentage;
-          
+
           // Calcular riskLevel usando la función del hook
           const riskLevel = determineRiskLevel(currentGrade);
-          
+
           predictions.push({
             subject: subject.name,
             currentGrade: Math.round(currentGrade * 10) / 10,
@@ -721,7 +736,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
 
       console.log('✅ Predicciones reales generadas:', predictions.length);
       setPredictions(predictions);
-      
+
     } catch (error) {
       console.error('❌ Error generando predicciones reales:', error);
       setPredictions([]);
@@ -734,7 +749,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
   const generateRealStudyPatternsFromFirebase = async (firebaseSemesters: FirebaseSemester[]) => {
     try {
       console.log('📊 Generando patrones de estudio reales...');
-      
+
       const activeSemester = firebaseSemesters.find(s => s.isActive) || firebaseSemesters[firebaseSemesters.length - 1];
       if (!activeSemester || !activeSemester.subjects || activeSemester.subjects.length === 0) {
         console.warn('⚠️ No hay materias para analizar patrones');
@@ -745,7 +760,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       // Analizar patrones de estudio de las materias reales
       const { academicPredictorML } = await import('../services/ml/AcademicPredictorML');
       const studyPatterns = academicPredictorML.analyzeStudyPatterns(
-        activeSemester.subjects,
+        activeSemester.subjects as unknown as AcademicSubject[],
         [] // TODO: Agregar historial de estudio real
       );
 
@@ -771,7 +786,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
 
       console.log('✅ Patrones de estudio reales generados:', patterns.filter(p => p.hours > 0).length);
       setStudyPatterns(patterns.slice(0, 7));
-      
+
     } catch (error) {
       console.error('❌ Error generando patrones reales:', error);
       setStudyPatterns([]);
@@ -788,7 +803,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
     const assignmentCompletion = subject.assignmentCompletion || 0.8;
     const credits = subject.credits || 3;
     const passingGrade = 3.0; // Nota mínima para aprobar
-    
+
     // Análisis de riesgo basado en sistema de cortes acumulativos
     let currentGrade = 0;
     let accumulatedPercentage = 0;
@@ -796,16 +811,16 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
     let projectedFinalGrade = 0;
     let minRequiredRemaining = 0;
     let riskAnalysis = '';
-    
+
     if (subject.cuts && subject.cuts.length > 0) {
       // PASO 1: Calcular puntos acumulados de cortes evaluados
       let accumulatedPoints = 0;
       let completedCuts = 0;
-      
+
       for (const cut of subject.cuts) {
         const cutPercentage = cut.percentage || 0;
         const cutGrade = cut.grade || 0;
-        
+
         if (cutGrade > 0) { // Solo contar cortes con nota
           // Puntos acumulados = (nota del corte / 5.0) * porcentaje del corte
           accumulatedPoints += (cutGrade / 5.0) * cutPercentage;
@@ -813,24 +828,24 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
           completedCuts++;
         }
       }
-      
+
       currentGrade = accumulatedPoints;
       remainingPercentage = 100 - accumulatedPercentage;
-      
+
       // PASO 2: Calcular proyección de nota final (asumiendo rendimiento actual)
-      const pointsPerPercentage = accumulatedPercentage > 0 
-        ? accumulatedPoints / accumulatedPercentage 
+      const pointsPerPercentage = accumulatedPercentage > 0
+        ? accumulatedPoints / accumulatedPercentage
         : 0; // Puntos por cada % evaluado
-      
+
       projectedFinalGrade = currentGrade + (remainingPercentage * pointsPerPercentage);
-      
+
       // PASO 3: Calcular nota mínima requerida en cortes restantes para aprobar
       // Si necesitamos 3.0 para aprobar y ya tenemos currentGrade, cuánto falta?
       const remainingPointsNeeded = Math.max(0, passingGrade - currentGrade);
-      minRequiredRemaining = remainingPercentage > 0 
+      minRequiredRemaining = remainingPercentage > 0
         ? (remainingPointsNeeded / remainingPercentage) * 5.0 // Convertir a escala 0-5
         : 0;
-      
+
       // PASO 4: Análisis de riesgo basado en múltiples factores
       riskAnalysis = `
         🔍 ANÁLISIS DE RIESGO (${subject.name}):
@@ -840,27 +855,27 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         - Proyección final: ${projectedFinalGrade.toFixed(2)}
         - Nota mínima necesaria en cortes restantes: ${minRequiredRemaining.toFixed(2)}
       `;
-      
+
       console.log(riskAnalysis);
     } else {
       // Sistema tradicional: usar nota directa
       currentGrade = subject.currentAverage || subject.finalGrade || 0;
       projectedFinalGrade = currentGrade;
-      
+
       riskAnalysis = `NOTA TRADICIONAL: ${currentGrade.toFixed(2)}`;
       console.log(riskAnalysis);
     }
-    
+
     // Calcular puntuación de riesgo basada en análisis de cortes
     let riskScore = 0;
     let riskLevel = 'low';
     let riskColor = 'green';
-    
+
     if (subject.cuts && subject.cuts.length > 0 && accumulatedPercentage > 0) {
       // Factor 1: Rendimiento actual en cortes evaluados (40% peso)
       const pointsPerPercentage = currentGrade / accumulatedPercentage;
       const currentPerformanceScore = pointsPerPercentage * 5; // Convertir a escala 0-5
-      
+
       if (currentPerformanceScore < 1.0) {
         riskScore += 80; // CRÍTICO - Rendimiento actual muy bajo
       } else if (currentPerformanceScore < 2.0) {
@@ -872,7 +887,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       } else {
         riskScore += 0; // MÍNIMO - Rendimiento actual bueno
       }
-      
+
       // Factor 2: Proyección de nota final (30% peso)
       if (projectedFinalGrade < 2.0) {
         riskScore += 50; // CRÍTICO - Proyección muy baja
@@ -885,7 +900,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       } else {
         riskScore += 0; // MÍNIMO - Proyección aprobada
       }
-      
+
       // Factor 3: Nota mínima requerida en cortes restantes (20% peso)
       if (minRequiredRemaining > 4.5) {
         riskScore += 40; // CRÍTICO - Necesita nota casi perfecta
@@ -900,7 +915,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       } else {
         riskScore += 0; // Ya está aprobado
       }
-      
+
       // Factor 4: Progreso de evaluación (10% peso)
       const evaluationProgress = accumulatedPercentage / 100;
       if (evaluationProgress < 0.3) {
@@ -910,7 +925,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       } else if (evaluationProgress < 0.7) {
         riskScore += 5; // Poco por evaluar
       }
-      
+
     } else {
       // Sistema tradicional: evaluar por nota actual
       if (currentGrade < 2.0) {
@@ -925,7 +940,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         riskScore += 0; // MÍNIMO
       }
     }
-    
+
     // Asistencia (factor adicional)
     if (attendanceRate < 0.6) {
       riskScore += 15;
@@ -934,7 +949,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
     } else if (attendanceRate < 0.8) {
       riskScore += 5;
     }
-    
+
     // Tiempo de estudio (factor adicional)
     if (studyHours < 2) {
       riskScore += 10;
@@ -943,7 +958,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
     } else if (studyHours < 6) {
       riskScore += 4;
     }
-    
+
     // Completitud de tareas (factor adicional)
     if (assignmentCompletion < 0.4) {
       riskScore += 10;
@@ -952,7 +967,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
     } else if (assignmentCompletion < 0.8) {
       riskScore += 3;
     }
-    
+
     // Determinar nivel de riesgo basado en riesgo calculado
     if (riskScore >= 80) {
       riskLevel = 'high'; // CRÍTICO
@@ -970,7 +985,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       riskLevel = 'low'; // MÍNIMO
       riskColor = 'green';
     }
-    
+
     // Debug: Mostrar cálculo de riesgo
     console.log(`🔍 RIESGO CALCULADO para ${subject.name}:`, {
       riskScore,
@@ -988,16 +1003,16 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
   // Función para generar factores de riesgo específicos basados en nivel
   const generateSpecificRiskFactors = (subject: any, averageGPA: number, passingGrade: number, gradeDeficit: number, gradeSurplus: number, progressToPass: number) => {
     const factors: string[] = [];
-    
+
     // Calcular currentGrade usando el hook
     const currentGrade = calculateRealAverage(subject);
-    
+
     const credits = subject.credits || 3;
     const attendanceRate = subject.attendanceRate || 0.9;
     const studyHours = subject.studyHours || 15;
     const assignmentCompletion = subject.assignmentCompletion || 0.8;
     const { riskLevel } = calculateDetailedRiskLevel(subject, averageGPA);
-    
+
     // Calcular accumulatedPercentage si tiene cortes
     let accumulatedPercentage = 0;
     if (subject.cuts && subject.cuts.length > 0) {
@@ -1007,7 +1022,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         }
       }
     }
-    
+
     // Calcular información de escala
     const currentPercentage = (currentGrade / 5.0) * 100;
     const getGradeScale = (percentage: number) => {
@@ -1022,18 +1037,19 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       return { min: 0.0, max: 0.9, level: 'critico' };
     };
     const gradeScale = getGradeScale(currentPercentage);
-    
+
     // Factores críticos (CRÍTICO) - Basados en sistema de cortes
     if (riskLevel === 'high' && gradeScale.level === 'critico') {
       const deficit = (passingGrade - currentGrade).toFixed(1);
-      
+
       if (subject.cuts && subject.cuts.length > 0 && accumulatedPercentage > 0) {
         const evaluationProgress = (accumulatedPercentage / 100 * 100).toFixed(1);
-        const remainingPercentage = (100 - accumulatedPercentage).toFixed(1);
-        const projectedFinalGrade = accumulatedPercentage > 0 
-          ? (currentGrade + (remainingPercentage * (currentGrade / accumulatedPercentage))).toFixed(1)
+        const remainingPercentageVal = 100 - accumulatedPercentage;
+        const remainingPercentage = remainingPercentageVal.toFixed(1);
+        const projectedFinalGrade = accumulatedPercentage > 0
+          ? (currentGrade + (remainingPercentageVal * (currentGrade / accumulatedPercentage))).toFixed(1)
           : currentGrade.toFixed(1);
-        
+
         factors.push(`🚨 RIESGO CRÍTICO: Promedio acumulado de ${currentGrade.toFixed(1)} puntos (${evaluationProgress}% evaluado) - FALTA ${deficit} PUNTOS PARA APROBAR (nota mínima: 3.0)`);
         factors.push(`🚨 PROYECCIÓN CRÍTICA: Nota final proyectada ${projectedFinalGrade} - INSUFICIENTE PARA APROBAR`);
         factors.push(`🚨 CORTES RESTANTES: ${remainingPercentage}% por evaluar - NECESITA MEJORAR RENDIMIENTO`);
@@ -1043,7 +1059,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         factors.push(`🚨 RANGO ACTUAL: Se encuentra en el rango crítico de la escala (${gradeScale.min}-${gradeScale.max})`);
         factors.push(`🚨 Progreso hacia aprobar: ${progressToPass.toFixed(0)}% - MUY BAJO`);
       }
-      
+
       if (attendanceRate < 0.7) {
         factors.push(`🚨 Asistencia crítica del ${(attendanceRate * 100).toFixed(0)}% - PÉRDIDA DE MATERIA INMINENTE`);
       }
@@ -1054,7 +1070,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         factors.push(`🚨 Completitud de tareas crítica: ${(assignmentCompletion * 100).toFixed(0)}% - MUCHAS TAREAS PENDIENTES`);
       }
     }
-    
+
     // Factores de alto riesgo (ALTO) - Basados en nota mínima
     else if (riskLevel === 'high') {
       const deficit = (passingGrade - currentGrade).toFixed(1);
@@ -1070,7 +1086,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         factors.push(`⚠️ Completitud de tareas baja: ${(assignmentCompletion * 100).toFixed(0)}% - TAREAS ATRASADAS`);
       }
     }
-    
+
     // Factores de riesgo medio (MEDIO) - Basados en nota mínima
     else if (riskLevel === 'medium') {
       if (currentGrade >= passingGrade) {
@@ -1092,7 +1108,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         factors.push(`⚡ Completitud de tareas regular: ${(assignmentCompletion * 100).toFixed(0)}% - ALGUNAS PENDIENTES`);
       }
     }
-    
+
     // Factores de riesgo bajo (BAJO) - Basados en nota mínima
     else if (riskLevel === 'low') {
       const surplus = (currentGrade - passingGrade).toFixed(1);
@@ -1108,7 +1124,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         factors.push(`📊 Completitud de tareas buena: ${(assignmentCompletion * 100).toFixed(0)}% - BIEN`);
       }
     }
-    
+
     // Factores de riesgo mínimo (MÍNIMO) - Basados en nota mínima
     else {
       const surplus = (currentGrade - passingGrade).toFixed(1);
@@ -1118,7 +1134,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       factors.push(`✅ Tiempo de estudio óptimo: ${studyHours}h/semana - IDEAL`);
       factors.push(`✅ Completitud de tareas excelente: ${(assignmentCompletion * 100).toFixed(0)}% - SOBRESALIENTE`);
     }
-    
+
     // Factores específicos por tipo de materia según nivel de riesgo
     const subjectName = subject.name.toLowerCase();
     if (subjectName.includes('matemática') || subjectName.includes('física') || subjectName.includes('química')) {
@@ -1140,12 +1156,12 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         factors.push('💻 Programación: Mantener proyectos activos');
       }
     }
-    
+
     // Factores adicionales según créditos
     if (credits >= 4 && (riskLevel === 'CRÍTICO' || riskLevel === 'ALTO')) {
       factors.push(`📚 Materia de ${credits} créditos requiere mayor dedicación`);
     }
-    
+
     return factors;
   };
 
@@ -1156,8 +1172,8 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
     const credits = subject.credits || 3;
     const attendanceRate = subject.attendanceRate || 0.9;
     const studyHours = subject.studyHours || 15;
-              const { riskLevel, riskScore } = calculateDetailedRiskLevel(subject, averageGPA);
-    
+    const { riskLevel, riskScore } = calculateDetailedRiskLevel(subject, averageGPA);
+
     // Calcular información de escala para recomendaciones más precisas
     const currentPercentage = (currentGrade / 5.0) * 100;
     const getGradeScale = (percentage: number) => {
@@ -1172,7 +1188,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       return { min: 0.0, max: 0.9, level: 'critico' };
     };
     const gradeScale = getGradeScale(currentPercentage);
-    
+
     // Recomendaciones CRÍTICAS (Riesgo alto + escala crítica) - Más realistas
     if (riskLevel === 'high' && gradeScale.level === 'critico') {
       recommendations.push('🚨 ACCIÓN INMEDIATA: Contactar coordinador académico HOY');
@@ -1183,7 +1199,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       recommendations.push('🚨 Revisar conceptos básicos desde el inicio del curso');
       recommendations.push('🚨 Considerar reducir otras materias si es posible');
     }
-    
+
     // Recomendaciones ALTO RIESGO (Riesgo alto + escala no crítica) - Más realistas
     else if (riskLevel === 'high' && gradeScale.level !== 'critico') {
       recommendations.push('⚠️ ACCIÓN URGENTE: Buscar tutoría especializada esta semana');
@@ -1194,7 +1210,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       recommendations.push('⚠️ Revisar material de clases perdidas');
       recommendations.push('⚠️ Establecer metas semanales específicas');
     }
-    
+
     // Recomendaciones RIESGO MEDIO - Más realistas
     else if (riskLevel === 'medium') {
       recommendations.push('⚡ MEJORA NECESARIA: Buscar apoyo académico adicional');
@@ -1205,7 +1221,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       recommendations.push('⚡ Revisar conceptos antes de cada clase');
       recommendations.push('⚡ Establecer metas semanales medibles');
     }
-    
+
     // Recomendaciones RIESGO BAJO - Más realistas
     else if (riskLevel === 'low' && gradeScale.level === 'aprobado') {
       recommendations.push('📊 MANTENER RENDIMIENTO: Continuar con estrategias actuales');
@@ -1215,7 +1231,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       recommendations.push('📊 Establecer metas de excelencia académica');
       recommendations.push('📊 Considerar materias adicionales o proyectos');
     }
-    
+
     // Recomendaciones RIESGO MÍNIMO - Más realistas
     else if (riskLevel === 'low' && (gradeScale.level === 'bueno' || gradeScale.level === 'muy_bueno' || gradeScale.level === 'excelente')) {
       recommendations.push('✅ EXCELENTE RENDIMIENTO: Mantener estrategias actuales');
@@ -1225,7 +1241,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       recommendations.push('✅ Explorar materias avanzadas o proyectos');
       recommendations.push('✅ Establecer metas de liderazgo académico');
     }
-    
+
     // Fallback para casos no cubiertos - Riesgo bajo por defecto
     else {
       recommendations.push('📊 MANTENER RENDIMIENTO: Continuar con estrategias actuales');
@@ -1234,10 +1250,10 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       recommendations.push('📊 Prevenir caídas en rendimiento');
       recommendations.push('📊 Establecer pequeñas mejoras incrementales');
     }
-    
+
     // Recomendaciones específicas por tipo de materia según nivel de riesgo
     const subjectName = subject.name.toLowerCase();
-    
+
     // Ciencias exactas - Más realistas
     if (subjectName.includes('matemática') || subjectName.includes('física') || subjectName.includes('química') || subjectName.includes('algebra')) {
       if (riskLevel === 'high' && gradeScale.level === 'critico') {
@@ -1254,7 +1270,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         recommendations.push('🔬 Ayudar a compañeros con dificultades');
       }
     }
-    
+
     // Idiomas - Más realistas
     else if (subjectName.includes('inglés') || subjectName.includes('idioma')) {
       if (riskLevel === 'high' && gradeScale.level === 'critico') {
@@ -1271,7 +1287,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         recommendations.push('🌍 Ayudar a otros estudiantes con el idioma');
       }
     }
-    
+
     // Programación/Técnicas - Más realistas
     else if (subjectName.includes('programación') || subjectName.includes('computación')) {
       if (riskLevel === 'high' && gradeScale.level === 'critico') {
@@ -1288,7 +1304,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         recommendations.push('💻 Contribuir a proyectos de código abierto');
       }
     }
-    
+
     // Recomendaciones de seguimiento según nivel
     if (riskLevel === 'high') {
       recommendations.push('📞 Revisar progreso cada 3 días con profesor');
@@ -1298,7 +1314,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
     } else {
       recommendations.push('📞 Revisar progreso cada 2 semanas');
     }
-    
+
     // Generar recomendaciones inteligentes usando ML
     try {
       const mlFeatures = {
@@ -1313,21 +1329,21 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         creditLoad: credits / 24, // Normalizar
         extracurricularActivities: subject.extracurricularActivities || 0.3
       };
-      
+
       // Usar el modelo ML para predecir y generar recomendaciones personalizadas
       const mlRecommendations = await academicPredictorML.predictAcademicPerformance(
-        { id: '', name: '', email: '', role: 'student' } as User,
-        { 
-          id: '', 
-          name: '', 
-          startDate: '', 
-          endDate: '', 
-          isActive: true, 
-          subjects: [subject] 
-        } as Semester,
+        { id: '', name: '', email: '', role: 'student' } as unknown as User,
+        {
+          id: '',
+          name: '',
+          startDate: '',
+          endDate: '',
+          isActive: true,
+          subjects: [subject]
+        } as unknown as Semester,
         mlFeatures
       );
-      
+
       // Combinar recomendaciones base con las del ML (máximo 3 del ML)
       if (mlRecommendations.recommendations && mlRecommendations.recommendations.length > 0) {
         const topMLRecommendations = mlRecommendations.recommendations
@@ -1335,20 +1351,20 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
           .map(rec => `🤖 IA: ${rec}`); // Marcar como recomendaciones de IA
         recommendations.push(...topMLRecommendations);
       }
-      
+
       console.log('🤖 Recomendaciones ML generadas para', subject.name);
     } catch (error) {
       console.warn('⚠️ No se pudieron generar recomendaciones ML:', error);
       // Continuar con recomendaciones base
     }
-    
+
     return recommendations;
   };
 
   const generateRealRisksFromFirebase = async (firebaseSemesters: FirebaseSemester[], firebaseGoals: any[]) => {
     try {
       console.log('⚠️ Generando riesgos académicos reales...');
-      
+
       const activeSemester = firebaseSemesters.find(s => s.isActive) || firebaseSemesters[firebaseSemesters.length - 1];
       if (!activeSemester || !activeSemester.subjects || activeSemester.subjects.length === 0) {
         console.warn('⚠️ No hay materias para analizar riesgos');
@@ -1357,7 +1373,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
       }
 
       const risks: AcademicRisk[] = [];
-      
+
       // Calcular GPA promedio para análisis de riesgo
       const allSubjects = firebaseSemesters.flatMap(s => s.subjects || []);
       const totalCredits = allSubjects.reduce((sum, s) => sum + s.credits, 0);
@@ -1366,7 +1382,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         return sum + (grade * s.credits);
       }, 0);
       const averageGPA = totalCredits > 0 ? weightedSum / totalCredits : 0;
-      
+
       for (const subject of activeSemester.subjects) {
         // Preparar características para análisis de riesgo basadas en datos reales
         const features = {
@@ -1385,18 +1401,18 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         // Calcular riesgo para TODAS las materias (no solo las de alto riesgo del ML)
         const { riskScore, riskLevel } = calculateDetailedRiskLevel(subject, averageGPA);
         const riskPercentage = Math.max(10, Math.min(90, riskScore)); // Usar riskScore calculado
-        
+
         // Calcular variables necesarias para el análisis de riesgo
         const passingGrade = 3.0;
         const currentGrade = subject.currentAverage || subject.finalGrade || 0;
         const gradeDeficit = Math.max(0, passingGrade - currentGrade);
         const gradeSurplus = Math.max(0, currentGrade - passingGrade);
         const progressToPass = currentGrade >= passingGrade ? 100 : (currentGrade / passingGrade) * 100;
-        
+
         // Generar factores específicos basados en datos reales
         const specificFactors = generateSpecificRiskFactors(subject, averageGPA, passingGrade, gradeDeficit, gradeSurplus, progressToPass);
         const specificRecommendations = await generateSpecificRecommendations(subject, specificFactors, averageGPA);
-        
+
         risks.push({
           subject: subject.name,
           risk: riskPercentage,
@@ -1407,7 +1423,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
 
       console.log('✅ Riesgos académicos reales generados:', risks.length);
       setAcademicRisks(risks);
-      
+
     } catch (error) {
       console.error('❌ Error generando riesgos reales:', error);
       setAcademicRisks([]);
@@ -1420,7 +1436,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
   const generateRealGPAFromFirebase = async (firebaseSemesters: FirebaseSemester[]) => {
     try {
       console.log('📈 Generando GPA real...');
-      
+
       // Calcular GPA actual basado en datos reales de Firebase
       const allSubjects = firebaseSemesters.flatMap(s => s.subjects || []);
       const totalCredits = allSubjects.reduce((sum, s) => sum + s.credits, 0);
@@ -1429,10 +1445,10 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
         return sum + (grade * s.credits);
       }, 0);
       const currentGPA = totalCredits > 0 ? weightedSum / totalCredits : 0;
-      
+
       // Calcular predicción basada en tendencias históricas de Firebase
       let predictedGPA = currentGPA;
-      
+
       if (firebaseSemesters.length > 1) {
         // Calcular tendencia basada en semestres anteriores
         const recentSemesters = firebaseSemesters.slice(-3); // Últimos 3 semestres
@@ -1445,35 +1461,35 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
           }, 0);
           return semesterCredits > 0 ? semesterWeightedSum / semesterCredits : 0;
         });
-        
+
         const gpaTrend = semesterGPAs.reduce((sum, gpa) => sum + gpa, 0) / semesterGPAs.length;
         const trendDirection = gpaTrend - currentGPA;
-        
+
         // Ajustar predicción basada en tendencia
         predictedGPA = currentGPA + (trendDirection * 0.3); // Suavizar la tendencia
       } else {
         // Si no hay historial, usar predicción conservadora
         predictedGPA = currentGPA + (Math.random() - 0.3) * 0.2; // +/- 0.1
       }
-      
+
       // Asegurar que esté en rango válido
       predictedGPA = Math.max(0, Math.min(5, predictedGPA));
-      
+
       setOverallGPA({
         current: Math.round(currentGPA * 100) / 100,
         predicted: Math.round(predictedGPA * 100) / 100,
         trend: predictedGPA > currentGPA ? 'up' : 'down'
       });
-      
+
       console.log('✅ GPA real generado:', {
         current: currentGPA,
         predicted: predictedGPA,
         trend: predictedGPA > currentGPA ? 'up' : 'down'
       });
-      
+
     } catch (error) {
       console.error('❌ Error generando GPA real:', error);
-      setGpaData({ current: 0, target: 0, trend: 'stable' });
+      setOverallGPA({ current: 0, predicted: 0, trend: 'stable' });
     }
   };
 
@@ -1497,12 +1513,12 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
   if (loading) {
     return (
       <div className="p-4 flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <Brain className="size-16 animate-pulse text-blue-600 mx-auto mb-4" />
-            <h3 className="text-lg mb-2">Analizando tu rendimiento académico...</h3>
-            <p className="text-gray-600">La IA está procesando tus datos de estudio</p>
-          </div>
+        <div className="text-center">
+          <Brain className="size-16 animate-pulse text-blue-600 mx-auto mb-4" />
+          <h3 className="text-lg mb-2">Analizando tu rendimiento académico...</h3>
+          <p className="text-gray-600">La IA está procesando tus datos de estudio</p>
         </div>
+      </div>
     );
   }
 
@@ -1513,18 +1529,18 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
           <Brain className="size-16 animate-pulse text-purple-600 mx-auto mb-4" />
           <h3 className="text-lg mb-2">Entrenando modelo de IA...</h3>
           <p className="text-gray-600 mb-4">Preparando predicciones personalizadas con tus datos</p>
-          
+
           <div className="bg-gray-200 rounded-full h-2 mb-4">
-            <div 
+            <div
               className="bg-purple-600 h-2 rounded-full transition-all duration-300"
               style={{ width: `${trainingProgress}%` }}
             ></div>
           </div>
-          
+
           <p className="text-sm text-gray-500">
             Progreso: {Math.round(trainingProgress)}%
           </p>
-          
+
           <div className="mt-4 text-xs text-gray-400">
             <p>• Analizando patrones de estudio</p>
             <p>• Optimizando algoritmos de predicción</p>
@@ -1550,7 +1566,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
             📊 Predictor de Rendimiento Académico
           </h1>
           <p className="text-gray-600 max-w-3xl mx-auto text-lg">
-            Utiliza inteligencia artificial para predecir tu rendimiento académico futuro, 
+            Utiliza inteligencia artificial para predecir tu rendimiento académico futuro,
             identificar riesgos potenciales y recibir recomendaciones personalizadas para mejorar tus resultados.
           </p>
         </div>
@@ -1596,7 +1612,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <Label htmlFor="subject-filter" className="text-sm font-medium">Materia</Label>
                 <Select
@@ -1616,7 +1632,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div>
                 <Label htmlFor="risk-filter" className="text-sm font-medium">Nivel de Riesgo</Label>
                 <Select
@@ -1634,7 +1650,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="flex items-center gap-2 pt-6">
                 <Switch
                   id="risks-only"
@@ -1670,7 +1686,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
               </CardContent>
             </Card>
 
-            <Card>
+            {/* <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-gray-600">GPA Predicho</CardTitle>
               </CardHeader>
@@ -1685,7 +1701,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                 </div>
                 <p className="text-sm text-gray-500 mt-1">Próximo semestre</p>
               </CardContent>
-            </Card>
+            </Card> */}
 
             <Card>
               <CardHeader className="pb-3">
@@ -1706,10 +1722,10 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
               <BarChart3 className="size-4" />
               <span>Resumen</span>
             </TabsTrigger>
-            <TabsTrigger value="predictions" className="flex items-center gap-1 text-xs md:text-sm">
+            {/* <TabsTrigger value="predictions" className="flex items-center gap-1 text-xs md:text-sm">
               <Target className="size-4" />
               <span>Predicciones</span>
-            </TabsTrigger>
+            </TabsTrigger> */}
             <TabsTrigger value="risks" className="flex items-center gap-1 text-xs md:text-sm">
               <AlertTriangle className="size-4" />
               <span>Riesgos</span>
@@ -1729,77 +1745,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
           <TabsContent value="overview" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Resumen de Predicciones */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="size-5 text-blue-600" />
-                    Resumen de Predicciones
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="text-center p-3 bg-blue-50 rounded-lg">
-                        <p className="text-xl font-bold text-blue-600">{filteredPredictions.length}</p>
-                        <p className="text-xs text-blue-600">Analizadas</p>
-                      </div>
-                      <div className="text-center p-3 bg-green-50 rounded-lg">
-                        <p className="text-xl font-bold text-green-600">
-                          {filteredPredictions.filter(p => {
-                            // Buscar el riesgo correspondiente en academicRisks
-                            const correspondingRisk = academicRisks.find(r => r.subject === p.subject);
-                            return p.predictedGrade >= 3.0 && (!correspondingRisk || correspondingRisk.risk < 70);
-                          }).length}
-                        </p>
-                        <p className="text-xs text-green-600">Probable Aprobación</p>
-                      </div>
-                      <div className="text-center p-3 bg-red-50 rounded-lg">
-                        <p className="text-xl font-bold text-red-600">
-                          {filteredPredictions.filter(p => {
-                            // Buscar el riesgo correspondiente en academicRisks
-                            const correspondingRisk = academicRisks.find(r => r.subject === p.subject);
-                            return correspondingRisk && correspondingRisk.risk >= 70;
-                          }).length}
-                        </p>
-                        <p className="text-xs text-red-600">En Riesgo</p>
-                      </div>
-                    </div>
-                    
-                    {/* Lista de materias por categoría */}
-                    <div className="space-y-3 pt-2 max-h-64 overflow-y-auto">
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-green-600 uppercase">Probable Aprobación:</p>
-                        {filteredPredictions
-                          .filter(p => {
-                            const correspondingRisk = academicRisks.find(r => r.subject === p.subject);
-                            return p.predictedGrade >= 3.0 && (!correspondingRisk || correspondingRisk.risk < 70);
-                          })
-                          .map((p, idx) => (
-                            <div key={idx} className="text-sm p-2 bg-green-50 rounded border-l-2 border-green-600">
-                              <span className="font-medium">{p.subject}</span>
-                              <span className="text-gray-600 ml-2">({p.predictedGrade.toFixed(2)})</span>
-                            </div>
-                          ))}
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-red-600 uppercase">En Riesgo:</p>
-                        {filteredPredictions
-                          .filter(p => {
-                            const correspondingRisk = academicRisks.find(r => r.subject === p.subject);
-                            return correspondingRisk && correspondingRisk.risk >= 70;
-                          })
-                          .map((p, idx) => (
-                            <div key={idx} className="text-sm p-2 bg-red-50 rounded border-l-2 border-red-600">
-                              <span className="font-medium">{p.subject}</span>
-                              <span className="text-gray-600 ml-2">({p.predictedGrade.toFixed(2)})</span>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+
 
               {/* Resumen de Riesgos */}
               <Card>
@@ -1831,9 +1777,9 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                         <p className="text-xs text-green-600">Bajo Riesgo</p>
                       </div>
                     </div>
-                    
+
                     <div className="h-48">
-                      <PieChart 
+                      <PieChart
                         data={[
                           { name: 'Alto Riesgo', value: filteredRisks.filter(r => r.risk >= 70).length },
                           { name: 'Medio Riesgo', value: filteredRisks.filter(r => r.risk >= 40 && r.risk < 70).length },
@@ -1863,14 +1809,13 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                   {recommendations.slice(0, 3).map((rec) => (
                     <div key={rec.id} className="p-4 border rounded-lg hover:shadow-md transition-shadow">
                       <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-full ${
-                          rec.priority === 'high' ? 'bg-red-100 text-red-600' :
+                        <div className={`p-2 rounded-full ${rec.priority === 'high' ? 'bg-red-100 text-red-600' :
                           rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
-                          'bg-green-100 text-green-600'
-                        }`}>
+                            'bg-green-100 text-green-600'
+                          }`}>
                           {rec.priority === 'high' ? <AlertTriangle className="size-4" /> :
-                           rec.priority === 'medium' ? <Clock className="size-4" /> :
-                           <CheckCircle className="size-4" />}
+                            rec.priority === 'medium' ? <Clock className="size-4" /> :
+                              <CheckCircle className="size-4" />}
                         </div>
                         <div className="flex-1">
                           <h4 className="font-semibold text-sm mb-1">{rec.title}</h4>
@@ -1893,7 +1838,9 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
           </TabsContent>
 
           {/* Predictions Tab Mejorado */}
-          <TabsContent value="predictions" className="space-y-6">
+          {/* Predictions Tab Mejorado (OCULTO TEMPORALMENTE) */}
+          {/* <TabsContent value="predictions" className="space-y-6"> */}
+          <div className="hidden">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1913,112 +1860,112 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                     </div>
                   ) : (
                     filteredPredictions.map((prediction, index) => (
-                    <div key={index} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium">{prediction.subject}</h4>
-                        <div className="flex items-center gap-2">
-                          {getTrendIcon(prediction.improvement)}
-                          <Badge className={(() => {
-                            // Buscar el riesgo correspondiente en academicRisks
-                            const correspondingRisk = academicRisks.find(r => r.subject === prediction.subject);
-                            if (correspondingRisk) {
-                              if (correspondingRisk.risk >= 70) return 'text-red-600 bg-red-100';
-                              if (correspondingRisk.risk >= 40) return 'text-yellow-600 bg-yellow-100';
-                              return 'text-green-600 bg-green-100';
-                            }
-                            // Fallback al riskLevel original si no se encuentra
-                            return getRiskColor(prediction.riskLevel);
-                          })()}>
-                            {(() => {
+                      <div key={index} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">{prediction.subject}</h4>
+                          <div className="flex items-center gap-2">
+                            {getTrendIcon(prediction.improvement)}
+                            <Badge className={(() => {
                               // Buscar el riesgo correspondiente en academicRisks
                               const correspondingRisk = academicRisks.find(r => r.subject === prediction.subject);
                               if (correspondingRisk) {
-                                if (correspondingRisk.risk >= 70) return 'Alto Riesgo';
-                                if (correspondingRisk.risk >= 40) return 'Riesgo Medio';
-                                return 'Bajo Riesgo';
+                                if (correspondingRisk.risk >= 70) return 'text-red-600 bg-red-100';
+                                if (correspondingRisk.risk >= 40) return 'text-yellow-600 bg-yellow-100';
+                                return 'text-green-600 bg-green-100';
                               }
                               // Fallback al riskLevel original si no se encuentra
-                              return prediction.riskLevel === 'high' ? 'Alto Riesgo' : 
-                                     prediction.riskLevel === 'medium' ? 'Riesgo Medio' : 'Bajo Riesgo';
-                            })()}
-                          </Badge>
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                        <div>
-                          <p className="text-sm text-gray-600">Actual</p>
-                          <p className="text-lg font-semibold">{prediction.currentGrade}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Predicho</p>
-                          <p className="text-lg font-semibold text-purple-600">{prediction.predictedGrade}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Mejora</p>
-                          <p className={`text-lg font-semibold ${prediction.improvement >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {prediction.improvement >= 0 ? '+' : ''}{prediction.improvement}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Confianza IA</p>
-                          <div className="flex items-center gap-2">
-                            <p className="text-lg font-semibold text-green-600">
-                              {Math.max(prediction.confidence, 95)}%
-                            </p>
-                            <Badge variant="secondary" className="bg-green-100 text-green-800">
-                              <Brain className="size-3 mr-1" />
-                              Alta Precisión
+                              return getRiskColor(prediction.riskLevel);
+                            })()}>
+                              {(() => {
+                                // Buscar el riesgo correspondiente en academicRisks
+                                const correspondingRisk = academicRisks.find(r => r.subject === prediction.subject);
+                                if (correspondingRisk) {
+                                  if (correspondingRisk.risk >= 70) return 'Alto Riesgo';
+                                  if (correspondingRisk.risk >= 40) return 'Riesgo Medio';
+                                  return 'Bajo Riesgo';
+                                }
+                                // Fallback al riskLevel original si no se encuentra
+                                return prediction.riskLevel === 'high' ? 'Alto Riesgo' :
+                                  prediction.riskLevel === 'medium' ? 'Riesgo Medio' : 'Bajo Riesgo';
+                              })()}
                             </Badge>
                           </div>
                         </div>
-                      </div>
 
-                      <div className="mb-3">
-                        <p className="text-sm font-medium text-gray-600 mb-2">Factores clave:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {prediction.factors.map((factor, idx) => (
-                            <Badge key={idx} variant="secondary" className="text-xs">
-                              {factor}
-                            </Badge>
-                          ))}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Actual</p>
+                            <p className="text-lg font-semibold">{prediction.currentGrade}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Predicho</p>
+                            <p className="text-lg font-semibold text-purple-600">{prediction.predictedGrade}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Mejora</p>
+                            <p className={`text-lg font-semibold ${prediction.improvement >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {prediction.improvement >= 0 ? '+' : ''}{prediction.improvement}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Confianza IA</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-lg font-semibold text-green-600">
+                                {Math.max(prediction.confidence, 95)}%
+                              </p>
+                              <Badge variant="secondary" className="bg-green-100 text-green-800">
+                                <Brain className="size-3 mr-1" />
+                                Alta Precisión
+                              </Badge>
+                            </div>
+                          </div>
                         </div>
-                      </div>
 
-                      {/* Barra de progreso basada en porcentaje completado de la materia */}
-                      <div className="mb-3">
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="text-sm text-gray-600">Progreso de la materia</span>
-                          <span className="text-sm font-medium text-gray-700">
-                            {(() => {
-                              const progressText = prediction.factors.find(f => f.includes('Progreso actual:'));
-                              return progressText ? progressText.split(': ')[1] : '0%';
-                            })()}
-                          </span>
+                        <div className="mb-3">
+                          <p className="text-sm font-medium text-gray-600 mb-2">Factores clave:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {prediction.factors.map((factor, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {factor}
+                              </Badge>
+                            ))}
+                          </div>
                         </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                            style={{ 
-                              width: `${(() => {
+
+                        {/* Barra de progreso basada en porcentaje completado de la materia */}
+                        <div className="mb-3">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-sm text-gray-600">Progreso de la materia</span>
+                            <span className="text-sm font-medium text-gray-700">
+                              {(() => {
                                 const progressText = prediction.factors.find(f => f.includes('Progreso actual:'));
-                                if (progressText) {
-                                  const percentage = parseFloat(progressText.split(': ')[1].replace('%', ''));
-                                  return Math.max(0, Math.min(100, percentage));
-                                }
-                                return 0;
-                              })()}%` 
-                            }}
-                          />
+                                return progressText ? progressText.split(': ')[1] : '0%';
+                              })()}
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                              style={{
+                                width: `${(() => {
+                                  const progressText = prediction.factors.find(f => f.includes('Progreso actual:'));
+                                  if (progressText) {
+                                    const percentage = parseFloat(progressText.split(': ')[1].replace('%', ''));
+                                    return Math.max(0, Math.min(100, percentage));
+                                  }
+                                  return 0;
+                                })()}%`
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
                     ))
                   )}
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
 
           {/* Study Patterns Tab */}
           <TabsContent value="patterns" className="space-y-6">
@@ -2044,8 +1991,8 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                             {pattern.hours > 0 ? (
                               <>
                                 <div className="w-20 bg-gray-200 rounded-full h-2">
-                                  <div 
-                                    className="bg-blue-600 h-2 rounded-full" 
+                                  <div
+                                    className="bg-blue-600 h-2 rounded-full"
                                     style={{ width: `${(pattern.hours / 7) * 100}%` }}
                                   />
                                 </div>
@@ -2070,11 +2017,10 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                             {pattern.efficiency > 0 ? (
                               <>
                                 <div className="w-20 bg-gray-200 rounded-full h-2">
-                                  <div 
-                                    className={`h-2 rounded-full ${
-                                      pattern.efficiency >= 80 ? 'bg-green-600' : 
+                                  <div
+                                    className={`h-2 rounded-full ${pattern.efficiency >= 80 ? 'bg-green-600' :
                                       pattern.efficiency >= 60 ? 'bg-yellow-600' : 'bg-red-600'
-                                    }`}
+                                      }`}
                                     style={{ width: `${pattern.efficiency}%` }}
                                   />
                                 </div>
@@ -2146,14 +2092,13 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                     recommendations.map((rec) => (
                       <div key={rec.id} className="p-6 border rounded-lg hover:shadow-md transition-all duration-200">
                         <div className="flex items-start gap-4">
-                          <div className={`p-3 rounded-full ${
-                            rec.priority === 'high' ? 'bg-red-100 text-red-600' :
+                          <div className={`p-3 rounded-full ${rec.priority === 'high' ? 'bg-red-100 text-red-600' :
                             rec.priority === 'medium' ? 'bg-yellow-100 text-yellow-600' :
-                            'bg-green-100 text-green-600'
-                          }`}>
+                              'bg-green-100 text-green-600'
+                            }`}>
                             {rec.priority === 'high' ? <AlertTriangle className="size-5" /> :
-                             rec.priority === 'medium' ? <Clock className="size-5" /> :
-                             <CheckCircle className="size-5" />}
+                              rec.priority === 'medium' ? <Clock className="size-5" /> :
+                                <CheckCircle className="size-5" />}
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
@@ -2214,61 +2159,59 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                     </div>
                   ) : (
                     filteredRisks.map((risk, index) => (
-                    <div key={index} className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium">{risk.subject}</h4>
-                        <div className="flex items-center gap-2">
-                          <AlertTriangle className={`size-4 ${
-                            risk.risk >= 70 ? 'text-red-600' : 
-                            risk.risk >= 40 ? 'text-yellow-600' : 'text-green-600'
-                          }`} />
-                          <Badge className={
-                            risk.risk >= 70 ? 'bg-red-100 text-red-800' : 
-                            risk.risk >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
-                          }>
-                            {Math.round(risk.risk)}% riesgo
-                          </Badge>
-                        </div>
-                      </div>
-
-                      <div className="mb-4">
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
-                            className={`h-3 rounded-full ${
-                              risk.risk >= 70 ? 'bg-red-600' : 
-                              risk.risk >= 40 ? 'bg-yellow-600' : 'bg-green-600'
-                            }`}
-                            style={{ width: `${risk.risk}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm font-medium text-gray-600 mb-2">Factores de riesgo:</p>
-                          <ul className="text-sm text-gray-700 space-y-1">
-                            {(risk.factors || []).map((factor, idx) => (
-                              <li key={idx} className="flex items-center gap-2">
-                                <div className="w-1 h-1 bg-red-500 rounded-full" />
-                                {factor}
-                              </li>
-                            ))}
-                          </ul>
+                      <div key={index} className="p-4 border rounded-lg">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium">{risk.subject}</h4>
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className={`size-4 ${risk.risk >= 70 ? 'text-red-600' :
+                              risk.risk >= 40 ? 'text-yellow-600' : 'text-green-600'
+                              }`} />
+                            <Badge className={
+                              risk.risk >= 70 ? 'bg-red-100 text-red-800' :
+                                risk.risk >= 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                            }>
+                              {Math.round(risk.risk)}% riesgo
+                            </Badge>
+                          </div>
                         </div>
 
-                        <div>
-                          <p className="text-sm font-medium text-gray-600 mb-2">Recomendaciones:</p>
-                          <ul className="text-sm text-gray-700 space-y-1">
-                            {(risk.recommendations || []).map((rec, idx) => (
-                              <li key={idx} className="flex items-center gap-2">
-                                <div className="w-1 h-1 bg-green-500 rounded-full" />
-                                {rec}
-                              </li>
-                            ))}
-                          </ul>
+                        <div className="mb-4">
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div
+                              className={`h-3 rounded-full ${risk.risk >= 70 ? 'bg-red-600' :
+                                risk.risk >= 40 ? 'bg-yellow-600' : 'bg-green-600'
+                                }`}
+                              style={{ width: `${risk.risk}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid md:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 mb-2">Factores de riesgo:</p>
+                            <ul className="text-sm text-gray-700 space-y-1">
+                              {(risk.factors || []).map((factor, idx) => (
+                                <li key={idx} className="flex items-center gap-2">
+                                  <div className="w-1 h-1 bg-red-500 rounded-full" />
+                                  {factor}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          <div>
+                            <p className="text-sm font-medium text-gray-600 mb-2">Recomendaciones:</p>
+                            <ul className="text-sm text-gray-700 space-y-1">
+                              {(risk.recommendations || []).map((rec, idx) => (
+                                <li key={idx} className="flex items-center gap-2">
+                                  <div className="w-1 h-1 bg-green-500 rounded-full" />
+                                  {rec}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         </div>
                       </div>
-                    </div>
                     ))
                   )}
                 </div>
@@ -2413,7 +2356,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                       </Badge>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-sm">Precisión de Predicciones</span>
@@ -2477,7 +2420,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                       </div>
                     </div>
                   </div>
-                  
+
                   <Alert>
                     <CheckCircle className="size-4" />
                     <AlertDescription>
@@ -2540,7 +2483,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                         <p className="text-sm text-blue-600">Tu rendimiento muestra tendencia ascendente consistente</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg">
                       <Target className="size-5 text-green-600 mt-0.5" />
                       <div>
@@ -2548,7 +2491,7 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
                         <p className="text-sm text-green-600">Estrategias de estudio altamente efectivas identificadas</p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg">
                       <TrendingUp className="size-5 text-purple-600 mt-0.5" />
                       <div>
@@ -2561,30 +2504,30 @@ export function AcademicPredictorPage({ onNavigate }: AcademicPredictorPageProps
               </Card>
             </div>
           </TabsContent>
-        </Tabs>
+        </Tabs >
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 pt-6">
-          <Button 
-            onClick={() => loadAcademicData()} 
+          <Button
+            onClick={() => loadAcademicData()}
             disabled={loading}
             className="flex items-center gap-2"
           >
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
             Actualizar Análisis
           </Button>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             onClick={() => onNavigate('search')}
             className="flex items-center gap-2"
           >
             <Users className="size-4" />
             Buscar Tutor Especializado
           </Button>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             className="flex items-center gap-2"
           >
             <Download className="size-4" />

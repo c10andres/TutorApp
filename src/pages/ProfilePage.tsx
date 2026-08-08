@@ -13,17 +13,27 @@ import { Switch } from '../components/ui/switch';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Separator } from '../components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "../components/ui/dialog"
 import { User, Subject } from '../types';
 import { tutoringService } from '../services/tutoring';
+import { reputationService } from '../services/reputation';
+import { ReputationBadge } from '../components/ReputationBadge';
 import { MasterUserInfo } from '../components/MasterUserInfo';
-import { 
-  Camera, 
-  Save, 
-  Plus, 
-  X, 
-  Star, 
-  MapPin, 
-  Phone, 
+import {
+  Camera,
+  Save,
+  Plus,
+  X,
+  Star,
+  MapPin,
+  Phone,
   Mail,
   GraduationCap,
   DollarSign,
@@ -33,7 +43,8 @@ import {
   CheckCircle,
   AlertCircle,
   BookOpen,
-  UserCheck
+  UserCheck,
+  Trash2
 } from 'lucide-react';
 
 interface ProfilePageProps {
@@ -41,8 +52,9 @@ interface ProfilePageProps {
 }
 
 export function ProfilePage({ onNavigate }: ProfilePageProps) {
-  const { user, updateProfile } = useAuth();
+  const { user, updateProfile, deleteAccount, signOut } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Verificar que el usuario esté cargado
   if (!user) {
@@ -63,7 +75,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const [newSubject, setNewSubject] = useState('');
   const [newLanguage, setNewLanguage] = useState('');
   const [newAchievement, setNewAchievement] = useState('');
-  
+
   // Form data
   const [formData, setFormData] = useState({
     name: user?.name || '',
@@ -74,7 +86,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     avatar: user?.avatar || '',
     // Tutor specific
     subjects: user?.subjects || [],
-    hourlyRate: user?.hourlyRate || 0,
+    hourlyPoints: (user as any)?.hourlyPoints || 50, // Default 50 points
     availability: user?.availability || false,
     experience: user?.experience || '',
     education: user?.education || '',
@@ -113,7 +125,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         avatar: user.avatar || '',
         // Tutor specific
         subjects: user.subjects || [],
-        hourlyRate: user.hourlyRate || 0,
+        hourlyPoints: (user as any).hourlyPoints || 50,
         availability: user.availability || false,
         experience: user.experience || '',
         education: user.education || '',
@@ -135,7 +147,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
       [field]: value,
     }));
     if (message) setMessage(null);
-    
+
     // Validaciones en tiempo real
     validateField(field, value);
   };
@@ -164,10 +176,10 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           errorMessage = 'Ingresa un número de teléfono válido';
         }
         break;
-      case 'hourlyRate':
+      case 'hourlyPoints':
         if (value && (isNaN(value) || value < 0)) {
           isValid = false;
-          errorMessage = 'La tarifa debe ser un número positivo';
+          errorMessage = 'El valor en puntos debe ser positivo';
         }
         break;
     }
@@ -181,7 +193,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
     if (newSubject.trim()) {
       const field = type === 'teaching' ? 'subjects' : 'preferredSubjects';
       const currentSubjects = formData[field];
-      
+
       if (!currentSubjects.includes(newSubject.trim())) {
         setFormData(prev => ({
           ...prev,
@@ -203,7 +215,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const addLanguage = () => {
     if (newLanguage.trim()) {
       const currentLanguages = formData.languages;
-      
+
       if (!currentLanguages.includes(newLanguage.trim())) {
         setFormData(prev => ({
           ...prev,
@@ -224,7 +236,7 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   const addAchievement = () => {
     if (newAchievement.trim()) {
       const currentAchievements = formData.achievements;
-      
+
       if (!currentAchievements.includes(newAchievement.trim())) {
         setFormData(prev => ({
           ...prev,
@@ -262,22 +274,22 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
           setMessage({ type: 'error', text: 'Debes agregar al menos una materia que enseñes' });
           return;
         }
-        if (formData.hourlyRate <= 0) {
-          setMessage({ type: 'error', text: 'La tarifa por hora debe ser mayor a 0' });
+        if ((formData as any).hourlyPoints <= 0) {
+          setMessage({ type: 'error', text: 'El valor en puntos debe ser mayor a 0' });
           return;
         }
       }
 
       console.log('✅ ProfilePage: Validaciones pasadas, llamando updateProfile...');
-      
+
       // Actualizar perfil
       const updatedUser = await updateProfile(formData);
-      
+
       console.log('🎉 ProfilePage: updateProfile completado');
       console.log('👤 ProfilePage: Usuario actualizado:', updatedUser);
-      
+
       setMessage({ type: 'success', text: 'Perfil actualizado correctamente' });
-      
+
     } catch (err) {
       console.error('❌ ProfilePage: Error al guardar:', err);
       setMessage({ type: 'error', text: 'Error al guardar el perfil' });
@@ -293,20 +305,20 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="hourlyRate">Tarifa por hora (Cop)</Label>
+              <Label htmlFor="hourlyPoints">Valor por hora (Calculado por Rango)</Label>
               <div className="relative">
-                <DollarSign className="absolute left-3 top-3 size-4 text-gray-400" />
+                <Star className="absolute left-3 top-3 size-4 text-yellow-500" />
                 <Input
-                  id="hourlyRate"
-                  type="number"
-                  min="0"
-                  step="50"
-                  placeholder="300"
-                  value={formData.hourlyRate}
-                  onChange={(e) => handleInputChange('hourlyRate', parseInt(e.target.value) || 0)}
-                  className="pl-10"
+                  id="hourlyPoints"
+                  type="text"
+                  value={`${(formData as any).hourlyPoints} Puntos`}
+                  disabled
+                  className="pl-10 bg-gray-100"
                 />
               </div>
+              <p className="text-xs text-gray-500">
+                Base 5 pts + 5 pts por nivel de insignia. (Automático)
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -509,16 +521,20 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
   );
 
   const renderStats = () => {
+    const points = (user as any)?.reputationPoints || 0;
+    const level = reputationService.getLevel(points);
+    const badges = (user as any)?.badges || [];
+
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Star className="size-5 text-yellow-500" />
-            Estadísticas
+            Estadísticas y Reputación
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="text-center">
               <div className="text-2xl text-blue-600">{user?.rating || 0}</div>
               <div className="text-sm text-gray-600">Rating</div>
@@ -528,17 +544,45 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
               <div className="text-sm text-gray-600">Reseñas</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl text-purple-600">156</div>
-              <div className="text-sm text-gray-600">Horas</div>
+              <div className="text-2xl text-purple-600">{points}</div>
+              <div className="text-sm text-gray-600">Puntos de Reputación</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl text-orange-600">24</div>
-              <div className="text-sm text-gray-600">Estudiantes</div>
+              <div className="text-2xl text-orange-600">Nivel {level}</div>
+              <div className="text-sm text-gray-600">Nivel de Contribuidor</div>
             </div>
           </div>
+
+          {badges.length > 0 && (
+            <>
+              <Separator className="my-4" />
+              <div>
+                <h4 className="text-sm font-medium mb-3 text-gray-500 uppercase tracking-wider">Insignias</h4>
+                <div className="flex flex-wrap gap-2">
+                  {badges.map((badgeId: string) => (
+                    <ReputationBadge key={badgeId} badgeId={badgeId} />
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     );
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      setLoading(true);
+      await deleteAccount();
+      // Auth context should handle redirect/state clearing
+    } catch (error: any) {
+      console.error("Error deleting account:", error);
+      setMessage({ type: 'error', text: error.message || 'Error al eliminar cuenta' });
+      setDeleteConfirmOpen(false);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -703,11 +747,11 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
                   Como Estudiante
                 </TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="tutor" className="mt-6">
                 {renderTutorTab()}
               </TabsContent>
-              
+
               <TabsContent value="student" className="mt-6">
                 {renderStudentTab()}
               </TabsContent>
@@ -731,6 +775,55 @@ export function ProfilePage({ onNavigate }: ProfilePageProps) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Zona de Peligro (Thesis Requirement: Secure Deletion) */}
+        <Card className="border-red-200">
+          <CardHeader>
+            <CardTitle className="text-red-600 flex items-center gap-2">
+              <Trash2 className="size-5" />
+              Zona de Peligro
+            </CardTitle>
+            <CardDescription>
+              Acciones irreversibles sobre tu cuenta
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between p-4 border border-red-100 rounded-lg bg-red-50">
+              <div>
+                <h4 className="font-medium text-red-900">Eliminar cuenta permanentemente</h4>
+                <p className="text-sm text-red-700">
+                  Esta acción no se puede deshacer. Se borrarán todos tus datos (Habeas Data).
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                Eliminar mi cuenta
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Dialogo de Confirmación */}
+        <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>¿Estás absolutamente seguro?</DialogTitle>
+              <DialogDescription>
+                Esta acción borrará permanentemente tu cuenta y eliminará tus datos de nuestros servidores.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="mt-4">
+              <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={handleDeleteAccount} disabled={loading}>
+                {loading ? 'Eliminando...' : 'Sí, eliminar permanentemente'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

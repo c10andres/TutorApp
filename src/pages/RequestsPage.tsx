@@ -6,39 +6,41 @@ import { Badge } from '../components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
-import { TutorRequest, User } from '../types';
+import { TutorRequest } from '../types';
 import { tutoringService } from '../services/tutoring';
-import { usersService } from '../services/users';
-import { formatPriceCOP, formatDate } from '../utils/formatters';
-import { 
+import { formatDate } from '../utils/formatters';
+import {
   Calendar,
   Clock,
   MapPin,
-  DollarSign,
   MessageSquare,
   CheckCircle,
   XCircle,
   AlertCircle,
   Star,
-  Eye,
-  EyeOff,
-  Plus,
-  RefreshCw,
-  BookOpen,
-  Loader2
+  Loader2,
+  Award,
+  Video
 } from 'lucide-react';
-
-interface RequestsPageProps {
-  onNavigate: (page: string, data?: any) => void;
-}
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../components/ui/dialog';
+import { Slider } from '../components/ui/slider';
+import { reputationService } from '../services/reputation';
+import { toast } from 'sonner';
 
 const STATUS_COLORS = {
-  pending: 'bg-yellow-100 text-yellow-800',
-  accepted: 'bg-blue-100 text-blue-800',
-  in_progress: 'bg-purple-100 text-purple-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
-  rejected: 'bg-gray-100 text-gray-800'
+  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  accepted: 'bg-blue-100 text-blue-800 border-blue-200',
+  in_progress: 'bg-purple-100 text-purple-800 border-purple-200',
+  completed: 'bg-green-100 text-green-800 border-green-200',
+  cancelled: 'bg-red-100 text-red-800 border-red-200',
+  rejected: 'bg-gray-100 text-gray-800 border-gray-200'
 };
 
 const STATUS_LABELS = {
@@ -50,17 +52,26 @@ const STATUS_LABELS = {
   rejected: 'Rechazada'
 };
 
+interface RequestsPageProps {
+  onNavigate: (page: string, data?: any) => void;
+}
+
 export function RequestsPage({ onNavigate }: RequestsPageProps) {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<TutorRequest[]>([]);
-  const [tutors, setTutors] = useState<Record<string, User>>({});
-  const [students, setStudents] = useState<Record<string, User>>({});
-  const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('all');
-  const [refreshing, setRefreshing] = useState(false);
-  const [showSpending, setShowSpending] = useState(true);
-  const [processingRequest, setProcessingRequest] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('active');
+
+  // Payment & Rating State
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedRequestForPayment, setSelectedRequestForPayment] = useState<TutorRequest | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState([5]); // Default 5 points
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+  const [processingPayment, setProcessingPayment] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
+
+  const isStudentView = user?.currentMode === 'student';
 
   useEffect(() => {
     loadRequests();
@@ -68,353 +79,252 @@ export function RequestsPage({ onNavigate }: RequestsPageProps) {
 
   const loadRequests = async () => {
     if (!user) return;
-
     try {
       setLoading(true);
-      setError('');
-
-      // Cargar solicitudes de Firebase REAL
-      console.log('📱 CARGANDO solicitudes de Firebase');
-      console.log('📱 Plataforma:', Capacitor.getPlatform());
-      
-      const requestsData = await tutoringService.getUserRequests(user.id);
-
-      setRequests(requestsData);
-
-      const userIds = new Set<string>();
-      requestsData.forEach(request => {
-        if (user.currentMode === 'tutor') {
-          userIds.add(request.studentId);
-        } else {
-          userIds.add(request.tutorId);
-        }
-      });
-
-      // Optimizar carga de usuarios usando getUsersByIds
-      const usersData: Record<string, User> = {};
-      if (userIds.size > 0) {
-        try {
-          const usersList = Array.from(userIds);
-          const usersResult = await usersService.getUsersByIds(usersList);
-          Object.assign(usersData, usersResult);
-        } catch (error) {
-          console.error('Error cargando usuarios:', error);
-          // Fallback a carga individual si falla la carga masiva
-          for (const userId of userIds) {
-            try {
-              const userData = await usersService.getUserById(userId);
-              if (userData) {
-                usersData[userId] = userData;
-              }
-            } catch (userError) {
-              console.error(`Error cargando usuario ${userId}:`, userError);
-            }
-          }
-        }
-      }
-
-      if (user.currentMode === 'tutor') {
-        setStudents(usersData);
-      } else {
-        setTutors(usersData);
-      }
-
+      const data = await tutoringService.getUserRequests(user.id);
+      setRequests(data);
     } catch (error) {
-      console.error('Error cargando solicitudes:', error);
-      setError('Error al cargar las solicitudes');
+      console.error('Error loading requests:', error);
+      toast.error('Error al cargar las solicitudes');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadRequests();
-    setRefreshing(false);
-  };
-
-  const handleRequestAction = async (requestId: string, action: string) => {
+  const handleStatusChange = async (requestId: string, newStatus: string) => {
     try {
-      setError('');
-      setProcessingRequest(requestId);
-      
-      console.log('🔄 Procesando acción:', action, 'para solicitud:', requestId);
-      
-      // Mapear acciones a estados
-      const statusMap: Record<string, TutorRequest['status']> = {
-        'accept': 'accepted',
-        'reject': 'rejected', 
-        'cancel': 'cancelled',
-        'complete': 'completed'
-      };
-      
-      const status = statusMap[action];
-      if (!status) {
-        throw new Error(`Acción no válida: ${action}`);
-      }
-      
-      console.log('📝 Actualizando solicitud a estado:', status);
-      
-      // Actualizar estado en Firebase
-      await tutoringService.updateRequestStatus(requestId, status);
-      
-      console.log('✅ Estado actualizado, recargando solicitudes...');
-      
-      // Recargar solicitudes para reflejar el cambio
+      setUpdatingStatus(requestId);
+      await tutoringService.updateRequestStatus(requestId, newStatus, user?.id);
+      toast.success(`Solicitud ${STATUS_LABELS[newStatus as keyof typeof STATUS_LABELS].toLowerCase()}`);
       await loadRequests();
-      
-      console.log('✅ Solicitudes recargadas exitosamente');
-      
     } catch (error) {
-      console.error('❌ Error al procesar solicitud:', error);
-      setError(`Error al procesar la solicitud: ${error.message || 'Error desconocido'}`);
+      console.error('Error updating status:', error);
+      toast.error('Error al actualizar el estado');
     } finally {
-      setProcessingRequest(null);
+      setUpdatingStatus(null);
     }
   };
 
-  const handleStartChat = (request: TutorRequest) => {
-    const otherUser = user?.currentMode === 'tutor' 
-      ? students[request.studentId]
-      : tutors[request.tutorId];
-    
-    onNavigate('chat', {
-      otherUser,
-      requestId: request.id
-    });
+  const handleOpenPayment = (request: TutorRequest) => {
+    setSelectedRequestForPayment(request);
+    setPaymentAmount([5]); // Reset to default
+    setRating(5);
+    setComment('');
+    setPaymentDialogOpen(true);
   };
 
-  const handleWriteReview = (request: TutorRequest) => {
-    const tutor = tutors[request.tutorId];
-    onNavigate('review', {
-      request,
-      tutor
-    });
-  };
+  const handleConfirmPayment = async () => {
+    if (!selectedRequestForPayment || !user) return;
 
-  const handleViewDetails = (request: TutorRequest) => {
-    // Obtener información del tutor o estudiante según el modo
-    const otherUser = user?.currentMode === 'tutor' 
-      ? students[request.studentId] 
-      : tutors[request.tutorId];
-    
-    if (otherUser) {
-      // Almacenar datos temporalmente para la página de detalles
-      (window as any).navigationData = {
-        request,
-        otherUser,
-        user: user
-      };
-      
-      // Navegar a la página de detalles
-      onNavigate('request-details');
-    }
-  };
-
-  const handleMarkAsCompleted = async (requestId: string) => {
     try {
-      setRefreshing(true);
-      await tutoringService.updateRequestStatus(requestId, 'completed');
-      
-      // Actualizar la lista local
-      setRequests(prev => prev.map(req => 
-        req.id === requestId 
-          ? { ...req, status: 'completed' as const, updatedAt: new Date() }
-          : req
-      ));
-      
-      // Mostrar mensaje de éxito
-      setError('');
-    } catch (err) {
-      console.error('Error marcando como completada:', err);
-      setError('Error al marcar la solicitud como completada');
+      setProcessingPayment(true);
+      const amount = paymentAmount[0];
+      const tutorId = selectedRequestForPayment.tutorId;
+
+      console.log(`💸 Procesando pago de ${amount} puntos para la solicitud ${selectedRequestForPayment.id}`);
+
+      // 1. Transferir puntos
+      await reputationService.transferPoints(user.id, tutorId, amount);
+
+      // 2. Enviar Reseña (Evaluación)
+      if (comment.trim()) {
+        await tutoringService.addReview({
+          tutorId: tutorId,
+          studentId: user.id,
+          studentName: user.name || 'Estudiante',
+          requestId: selectedRequestForPayment.id,
+          rating: rating,
+          comment: comment,
+          createdAt: new Date()
+        });
+      }
+
+      // 3. Actualizar estado de la solicitud y marcar como pagada
+      // Si la solicitud estaba en progreso, la marcamos como completada también
+      if (selectedRequestForPayment.status !== 'completed') {
+        await tutoringService.updateRequestStatus(selectedRequestForPayment.id, 'completed', selectedRequestForPayment.tutorId);
+      }
+
+      await tutoringService.updateRequest(selectedRequestForPayment.id, {
+        hasPaid: true,
+        hasReview: true,
+        totalAmount: amount,
+        paymentMethod: 'puntos_merito'
+      });
+
+      toast.success(`¡Has enviado ${amount} Puntos y tu calificación!`);
+      setPaymentDialogOpen(false);
+      await loadRequests();
+
+    } catch (error) {
+      console.error('Error en el pago:', error);
+      toast.error('Error al procesar. Intenta de nuevo.');
     } finally {
-      setRefreshing(false);
+      setProcessingPayment(false);
     }
   };
 
-  const getFilteredRequests = () => {
-    switch (activeTab) {
-      case 'pending':
-        return requests.filter(r => r.status === 'pending');
-      case 'active':
-        return requests.filter(r => ['accepted', 'in_progress'].includes(r.status));
-      case 'completed':
-        return requests.filter(r => r.status === 'completed');
-      case 'cancelled':
-        return requests.filter(r => ['cancelled', 'rejected'].includes(r.status));
-      default:
-        return requests;
-    }
-  };
+  // Filter requests
+  const activeRequests = requests.filter(r =>
+    ['pending', 'accepted', 'in_progress'].includes(r.status)
+  );
+
+  const historyRequests = requests.filter(r =>
+    ['completed', 'cancelled', 'rejected'].includes(r.status)
+  );
+
+  const displayedRequests = activeTab === 'active' ? activeRequests : historyRequests;
 
   const renderRequestCard = (request: TutorRequest) => {
-    const isStudentView = user?.currentMode === 'student';
-    const otherUserId = isStudentView ? request.tutorId : request.studentId;
-    const otherUser = isStudentView ? tutors[request.tutorId] : students[request.studentId];
-    const statusStyle = STATUS_COLORS[request.status] || STATUS_COLORS.pending;
-
-    // Si no tenemos información del otro usuario, mostrar información básica
-    if (!otherUser && otherUserId) {
-      // Mostrar tarjeta con información limitada mientras se carga el usuario
-      console.warn('Usuario no encontrado para ID:', otherUserId);
-    }
+    // Show the OTHER person's info
+    const otherPersonName = isStudentView ? request.tutorName : request.studentName;
+    const otherPersonId = isStudentView ? request.tutorId : request.studentId;
 
     return (
-      <Card key={request.id} className="hover:shadow-md transition-shadow">
+      <Card key={request.id} className="hover:shadow-md transition-shadow duration-200">
         <CardContent className="p-6">
-          <div className="flex flex-col space-y-4">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="size-12">
-                  <AvatarImage src={otherUser?.avatar} alt={otherUser?.name} />
-                  <AvatarFallback>
-                    {otherUser?.name?.split(' ').map(n => n[0]).join('') || '?'}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="font-semibold">
-                    {isStudentView ? 'Tutor: ' : 'Estudiante: '}
-                    {otherUser?.name || 'Usuario no encontrado'}
-                  </h3>
-                  <p className="text-sm text-gray-600">{request.subject || 'Materia no especificada'}</p>
-                </div>
-              </div>
-              
-              <Badge variant="secondary" className={statusStyle}>
-                {STATUS_LABELS[request.status]}
-              </Badge>
-            </div>
+          <div className="flex flex-col md:flex-row justify-between gap-4">
+            <div className="flex gap-4">
+              <Avatar className="h-12 w-12 border-2 border-white shadow-sm">
+                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${otherPersonId}`} />
+                <AvatarFallback>{otherPersonName?.[0]}</AvatarFallback>
+              </Avatar>
 
-            <div className="space-y-2">
-              <p className="text-sm text-gray-700 line-clamp-2">
-                {request.description || 'Sin descripción'}
-              </p>
-              
-              <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                <div className="flex items-center gap-2">
-                  <Calendar className="size-4" />
-                  <span>{formatDate(request.scheduledTime || request.preferredDateTime)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="size-4" />
-                  <span>{request.duration || 0} min</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="size-4" />
-                  <span className="capitalize">{request.location || 'No especificada'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="size-4" />
-                  <span>{formatPriceCOP(request.totalAmount)}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-2">
-              {!isStudentView && request.status === 'pending' && (
-                <>
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleRequestAction(request.id, 'accept')}
-                    disabled={processingRequest === request.id}
-                  >
-                    {processingRequest === request.id ? (
-                      <Loader2 className="size-4 mr-1 animate-spin" />
-                    ) : (
-                      <CheckCircle className="size-4 mr-1" />
-                    )}
-                    Aceptar
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleRequestAction(request.id, 'reject')}
-                    disabled={processingRequest === request.id}
-                  >
-                    {processingRequest === request.id ? (
-                      <Loader2 className="size-4 mr-1 animate-spin" />
-                    ) : (
-                      <XCircle className="size-4 mr-1" />
-                    )}
-                    Rechazar
-                  </Button>
-                </>
-              )}
-
-              {isStudentView && request.status === 'pending' && (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => handleRequestAction(request.id, 'cancel')}
-                  disabled={processingRequest === request.id}
-                >
-                  {processingRequest === request.id ? (
-                    <Loader2 className="size-4 mr-1 animate-spin" />
-                  ) : (
-                    <XCircle className="size-4 mr-1" />
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-lg">{otherPersonName || 'Usuario'}</h3>
+                  <Badge variant="secondary" className={STATUS_COLORS[request.status as keyof typeof STATUS_COLORS]}>
+                    {STATUS_LABELS[request.status as keyof typeof STATUS_LABELS]}
+                  </Badge>
+                  {isStudentView && request.hasPaid && (
+                    <Badge variant="outline" className="border-green-500 text-green-700 bg-green-50 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3" />
+                      Pagado ({request.totalAmount} pts)
+                    </Badge>
                   )}
-                  Cancelar
-                </Button>
-              )}
+                  {isStudentView && request.hasReview && (
+                    <Badge variant="outline" className="border-blue-500 text-blue-700 bg-blue-50 flex items-center gap-1">
+                      <Star className="h-3 w-3" />
+                      Calificado
+                    </Badge>
+                  )}
+                </div>
 
-              {['accepted', 'in_progress'].includes(request.status) && (
+                <h4 className="text-blue-600 font-medium">{request.subject}</h4>
+
+                <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-500 mt-2">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4" />
+                    {formatDate(request.scheduledTime)}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-4 w-4" />
+                    {request.duration} min
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    {request.location || 'Online'}
+                  </div>
+                </div>
+
+                {request.description && (
+                  <div className="mt-3 text-sm bg-gray-50 p-3 rounded-md text-gray-700">
+                    <MessageSquare className="h-3 w-3 inline mr-2 text-gray-400" />
+                    {request.description}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2 min-w-[140px] justify-center">
+              {/* STUDENT ACTIONS */}
+              {isStudentView && (
                 <>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleStartChat(request)}
-                  >
-                    <MessageSquare className="size-4 mr-1" />
-                    Chat
-                  </Button>
-                  
-                  {!isStudentView && (
-                    <Button 
+                  {request.status === 'pending' && (
+                    <Button
+                      variant="destructive"
                       size="sm"
-                      onClick={() => handleRequestAction(request.id, 'complete')}
+                      onClick={() => handleStatusChange(request.id, 'cancelled')}
+                      disabled={!!updatingStatus}
+                    >
+                      Cancelar Solicitud
+                    </Button>
+                  )}
+                  {request.status === 'accepted' && (
+                    <Button
+                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      size="sm"
+                      onClick={() => {/* Implement Join Session logic later */ }}
+                    >
+                      <Video className="h-4 w-4 mr-2" />
+                      Unirse a Sesión
+                    </Button>
+                  )}
+                  {/* Botón Unificado: Finalizar, Pagar y Calificar */}
+                  {request.status === 'in_progress' && (
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white shadow-sm"
+                      onClick={() => handleOpenPayment(request)}
                     >
                       <CheckCircle className="size-4 mr-1" />
-                      Completar
+                      Finalizar y Calificar
+                    </Button>
+                  )}
+
+                  {/* Si ya está completada pero falta pagar o calificar */}
+                  {request.status === 'completed' && (!request.hasPaid || !request.hasReview) && (
+                    <Button
+                      size="sm"
+                      className="bg-yellow-500 hover:bg-yellow-600 text-white shadow-sm"
+                      onClick={() => handleOpenPayment(request)}
+                    >
+                      <Award className="h-4 w-4 mr-2" />
+                      {request.hasPaid ? 'Calificar Tutor' : 'Pagar y Calificar'}
                     </Button>
                   )}
                 </>
               )}
 
-              {isStudentView && request.status === 'completed' && !request.hasReview && (
-                <Button 
-                  size="sm"
-                  onClick={() => handleWriteReview(request)}
-                >
-                  <Star className="size-4 mr-1" />
-                  Escribir reseña
-                </Button>
-              )}
-
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => handleViewDetails(request)}
-              >
-                <Eye className="size-4 mr-1" />
-                Ver detalles
-              </Button>
-
-              {/* Botón para marcar como completada - solo para tutores y solicitudes aceptadas */}
-              {!isStudentView && request.status === 'accepted' && (
-                <Button 
-                  size="sm"
-                  onClick={() => handleMarkAsCompleted(request.id)}
-                  disabled={refreshing}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {refreshing ? (
-                    <Loader2 className="size-4 mr-1 animate-spin" />
-                  ) : (
-                    <CheckCircle className="size-4 mr-1" />
+              {/* TUTOR ACTIONS */}
+              {!isStudentView && (
+                <>
+                  {request.status === 'pending' && (
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        size="sm"
+                        onClick={() => handleStatusChange(request.id, 'accepted')}
+                        disabled={!!updatingStatus}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Aceptar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="text-red-600 border-red-200 hover:bg-red-50"
+                        size="sm"
+                        onClick={() => handleStatusChange(request.id, 'rejected')}
+                        disabled={!!updatingStatus}
+                      >
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Rechazar
+                      </Button>
+                    </div>
                   )}
-                  Marcar completada
-                </Button>
+                  {request.status === 'in_progress' && (
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      size="sm"
+                      onClick={() => handleStatusChange(request.id, 'completed')}
+                      disabled={!!updatingStatus}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Marcar Completada
+                    </Button>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -423,189 +333,143 @@ export function RequestsPage({ onNavigate }: RequestsPageProps) {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl mb-2">Mis solicitudes</h1>
-          <p className="text-gray-600">Gestiona tus solicitudes de tutoría</p>
-        </div>
-        
-        <div className="grid gap-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <div className="animate-pulse space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="size-12 bg-gray-200 rounded-full" />
-                    <div className="space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-32" />
-                      <div className="h-3 bg-gray-200 rounded w-24" />
-                    </div>
-                  </div>
-                  <div className="h-3 bg-gray-200 rounded w-full" />
-                  <div className="h-3 bg-gray-200 rounded w-2/3" />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl mb-2">
-            {user?.currentMode === 'student' ? 'Mis clases' : 'Solicitudes de tutoría'}
-          </h1>
-          <p className="text-gray-600">
-            {user?.currentMode === 'student' 
-              ? 'Gestiona tus clases programadas y completadas'
-              : 'Revisa y gestiona las solicitudes de tus estudiantes'
-            }
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
-          >
-            <RefreshCw className={`size-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-            Actualizar
-          </Button>
-          
-          {user?.currentMode === 'student' && (
-            <Button
-              size="sm"
-              onClick={() => onNavigate('search')}
-            >
-              <Plus className="size-4 mr-1" />
-              Nueva clase
-            </Button>
-          )}
-        </div>
+    <div className="max-w-4xl mx-auto pb-20">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          {isStudentView ? 'Mis Solicitudes' : 'Solicitudes Recibidas'}
+        </h1>
+        <p className="text-gray-500">
+          Gestiona tus sesiones de tutoría, pagos solidarios y calificaciones.
+        </p>
       </div>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="size-4" />
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {requests.filter(r => r.status === 'pending').length}
-            </div>
-            <div className="text-sm text-gray-600">Pendientes</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {requests.filter(r => ['accepted', 'in_progress'].includes(r.status)).length}
-            </div>
-            <div className="text-sm text-gray-600">Activas</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {requests.filter(r => r.status === 'completed').length}
-            </div>
-            <div className="text-sm text-gray-600">Completadas</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-2xl font-bold text-orange-600">
-                {showSpending ? (
-                  requests.length > 0 ? (() => {
-                    const relevantRequests = requests.filter(r => ['accepted', 'in_progress', 'completed'].includes(r.status));
-                    const totalSpent = relevantRequests.reduce((sum, r) => {
-                      console.log(`💰 Solicitud ${r.id}: estado=${r.status}, totalAmount=${r.totalAmount}`);
-                      return sum + (r.totalAmount || 0);
-                    }, 0);
-                    console.log(`💰 Total gastado calculado: ${totalSpent} (${relevantRequests.length} solicitudes relevantes)`);
-                    return formatPriceCOP(totalSpent);
-                  })() : formatPriceCOP(0)
-                ) : (
-                  '***'
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowSpending(!showSpending)}
-                className="text-gray-500 hover:text-gray-700"
-                title={showSpending ? 'Ocultar gasto' : 'Mostrar gasto'}
-              >
-                {showSpending ? (
-                  <EyeOff className="size-4" />
-                ) : (
-                  <Eye className="size-4" />
-                )}
-              </Button>
-            </div>
-            <div className="text-sm text-gray-600">
-              {user?.currentMode === 'student' ? 'Gastado' : 'Ganado'}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="all">Todas</TabsTrigger>
-          <TabsTrigger value="pending">Pendientes</TabsTrigger>
+      <Tabs defaultValue="active" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
           <TabsTrigger value="active">Activas</TabsTrigger>
-          <TabsTrigger value="completed">Completadas</TabsTrigger>
-          <TabsTrigger value="cancelled">Canceladas</TabsTrigger>
+          <TabsTrigger value="history">Historial</TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="space-y-4">
-          {getFilteredRequests().length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <BookOpen className="size-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  No hay solicitudes
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  {activeTab === 'all' 
-                    ? 'Aún no tienes solicitudes de tutoría'
-                    : `No hay solicitudes ${activeTab === 'pending' ? 'pendientes' : 
-                         activeTab === 'active' ? 'activas' : 
-                         activeTab === 'completed' ? 'completadas' : 'canceladas'}`
-                  }
-                </p>
-                {user?.currentMode === 'student' && (
-                  <Button onClick={() => onNavigate('search')}>
-                    <Plus className="size-4 mr-2" />
-                    Buscar tutores
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {getFilteredRequests().map(renderRequestCard)}
+        <TabsContent value="active" className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center p-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
             </div>
+          ) : displayedRequests.length > 0 ? (
+            displayedRequests.map(renderRequestCard)
+          ) : (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No tienes solicitudes activas en este momento.
+              </AlertDescription>
+            </Alert>
+          )}
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center p-12">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            </div>
+          ) : displayedRequests.length > 0 ? (
+            displayedRequests.map(renderRequestCard)
+          ) : (
+            <Alert>
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                No tienes solicitudes en el historial.
+              </AlertDescription>
+            </Alert>
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Payment & Rating Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5 text-yellow-500" />
+              Finalizar y Calificar
+            </DialogTitle>
+            <DialogDescription>
+              Completa el ciclo de solidaridad enviando puntos y una reseña.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-6">
+
+            {/* Sección de Puntos */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">1. Pago Solidario (Puntos)</h4>
+              <div className="flex justify-center">
+                <div className="relative">
+                  <div className="text-4xl font-bold text-blue-600 flex items-center justify-center w-24 h-24 rounded-full bg-blue-50 border-4 border-blue-100 shadow-inner">
+                    {paymentAmount[0]}
+                  </div>
+                  <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-white px-2 py-0.5 rounded-full shadow border text-xs font-medium text-gray-600">
+                    Puntos
+                  </div>
+                </div>
+              </div>
+              <div className="px-2">
+                <div className="flex justify-between text-xs text-gray-500 mb-2">
+                  <span>5 pts (Mín)</span>
+                  <span>10 pts (Máx)</span>
+                </div>
+                <Slider
+                  value={paymentAmount}
+                  min={5}
+                  max={10}
+                  step={1}
+                  onValueChange={setPaymentAmount}
+                  className="w-full cursor-pointer"
+                />
+              </div>
+            </div>
+
+            {/* Sección de Calificación */}
+            <div className="space-y-4">
+              <h4 className="font-medium text-gray-900">2. Califica tu experiencia</h4>
+              <div className="flex justify-center gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    className={`transition-all duration-200 ${star <= rating ? 'text-yellow-400 scale-110' : 'text-gray-300'}`}
+                    onClick={() => setRating(star)}
+                  >
+                    <Star className="w-8 h-8 fill-current" />
+                  </button>
+                ))}
+              </div>
+              <textarea
+                className="w-full p-3 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 min-h-[80px]"
+                placeholder="Escribe un breve comentario sobre el tutor..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+              />
+            </div>
+
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)} disabled={processingPayment}>
+              Cancelar
+            </Button>
+            <Button onClick={handleConfirmPayment} disabled={processingPayment} className="bg-blue-600 text-white hover:bg-blue-700">
+              {processingPayment ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Procesando...
+                </>
+              ) : (
+                'Confirmar Todo'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

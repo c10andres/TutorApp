@@ -37,7 +37,11 @@
 ├── 📄 support_tickets (colección)
 │   └── {ticketId} (documento)
 │       └── messages (subcolección)
-└── 📄 analytics (colección)
+├── 📄 analytics (colección)
+├── 📄 user_interactions (colección) - Realtime Database
+│   └── {interactionId} (documento)
+└── 📄 user_interaction_summaries (colección) - Realtime Database
+    └── {userId} (documento)
 ```
 
 ---
@@ -635,6 +639,146 @@ interface Transaction {
   };
 }
 ```
+
+### 2.16 UserInteraction (Interacción de Usuario)
+```typescript
+interface UserInteraction {
+  id: string;
+  userId: string;
+  userRole: 'student' | 'tutor' | 'parent' | 'other';
+  type: UserInteractionType;
+  
+  // Contexto de la interacción
+  page?: string;
+  section?: string;
+  elementId?: string;
+  
+  // Datos específicos según el tipo
+  metadata?: {
+    searchQuery?: string;
+    filters?: Record<string, any>;
+    resultsCount?: number;
+    tutorId?: string;
+    tutorName?: string;
+    messageLength?: number;
+    responseTime?: number;
+    chatId?: string;
+    requestId?: string;
+    subject?: string;
+    duration?: number;
+    amount?: number;
+    paymentMethod?: string;
+    paymentStatus?: string;
+    aiFeature?: string;
+    aiModel?: string;
+    aiConfidence?: number;
+    loadTime?: number;
+    errorMessage?: string;
+    errorCode?: string;
+    fromPage?: string;
+    toPage?: string;
+    navigationMethod?: string;
+    screenWidth?: number;
+    screenHeight?: number;
+    deviceType?: 'mobile' | 'tablet' | 'desktop';
+    orientation?: 'portrait' | 'landscape';
+    [key: string]: any;
+  };
+  
+  // Información de sesión
+  sessionId?: string;
+  sessionDuration?: number;
+  
+  // Información del dispositivo
+  deviceInfo?: {
+    platform?: string;
+    userAgent?: string;
+    language?: string;
+    timezone?: string;
+  };
+  
+  // Timestamps
+  timestamp: Timestamp;
+  createdAt: Timestamp;
+}
+```
+
+**Tipos de Interacción (UserInteractionType):**
+- **Frecuencia de uso (Q1):** `app_opened`, `app_closed`, `session_started`, `session_ended`
+- **Navegación (Q3, Q4):** `page_viewed`, `navigation_click`, `back_button_used`, `search_initiated`
+- **Rendimiento (Q5):** `page_load_time`, `api_response_time`, `error_occurred`, `performance_metric`
+- **Diseño (Q6, Q7):** `ui_element_clicked`, `theme_changed`, `font_size_changed`
+- **Responsive (Q8):** `device_orientation_changed`, `screen_resize`, `responsive_breakpoint`
+- **Búsqueda de tutores (Q9, Q10, Q11):** `tutor_search_performed`, `tutor_search_filter_applied`, `tutor_profile_viewed`, `tutor_profile_contact_clicked`
+- **Chat (Q12):** `chat_message_sent`, `chat_message_received`, `chat_opened`, `chat_closed`, `chat_response_time`
+- **Solicitudes (Q13):** `tutoring_request_created`, `tutoring_request_accepted`, `tutoring_request_rejected`, `tutoring_request_completed`, `tutoring_request_cancelled`
+- **Pagos (Q14):** `payment_initiated`, `payment_completed`, `payment_failed`, `payment_method_selected`
+- **IA (Q15):** `ai_feature_used`, `ai_prediction_viewed`, `ai_suggestion_accepted`, `ai_suggestion_rejected`, `ai_chat_interaction`
+
+### 2.17 UserInteractionSummary (Resumen de Interacciones)
+```typescript
+interface UserInteractionSummary {
+  userId: string;
+  userRole: 'student' | 'tutor' | 'parent' | 'other';
+  
+  // Frecuencia de uso (Q1)
+  totalSessions: number;
+  totalAppOpens: number;
+  averageSessionDuration: number;
+  lastActiveDate: Timestamp;
+  daysActive: number;
+  
+  // Navegación (Q3, Q4)
+  totalPageViews: number;
+  uniquePagesVisited: number;
+  averageNavigationTime: number;
+  mostVisitedPages: Array<{
+    page: string;
+    count: number;
+  }>;
+  
+  // Rendimiento (Q5)
+  averagePageLoadTime: number;
+  totalErrors: number;
+  errorRate: number;
+  
+  // Búsqueda de tutores (Q9, Q10, Q11)
+  totalTutorSearches: number;
+  totalFiltersApplied: number;
+  totalTutorProfilesViewed: number;
+  averageSearchResults: number;
+  
+  // Chat (Q12)
+  totalChatMessages: number;
+  totalChatSessions: number;
+  averageResponseTime: number;
+  averageMessageLength: number;
+  
+  // Solicitudes (Q13)
+  totalRequestsCreated: number;
+  totalRequestsCompleted: number;
+  totalRequestsCancelled: number;
+  averageRequestDuration: number;
+  
+  // Pagos (Q14)
+  totalPayments: number;
+  totalPaymentAmount: number;
+  preferredPaymentMethod?: string;
+  paymentSuccessRate: number;
+  
+  // IA (Q15)
+  totalAIFeaturesUsed: number;
+  aiFeaturesUsed: string[];
+  aiAcceptanceRate: number;
+  
+  // Período de análisis
+  periodStart: Timestamp;
+  periodEnd: Timestamp;
+  lastUpdated: Timestamp;
+}
+```
+
+**Nota:** Las interacciones de usuarios se almacenan en **Realtime Database** (no Firestore) para permitir escrituras rápidas y frecuentes sin afectar los límites de escritura de Firestore.
 
 ---
 

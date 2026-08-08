@@ -3,17 +3,19 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Switch } from './ui/switch';
 import { usePlatform } from '../hooks/usePlatform';
-import { 
-  Home, 
-  Search, 
-  Calendar, 
-  MessageCircle, 
-  Brain, 
-  BarChart3, 
-  CalendarCheck, 
-  GraduationCap, 
-  FileText, 
+import {
+  Home,
+  Search,
+  Calendar,
+  MessageCircle,
+  MessageSquare,
+  Brain,
+  BarChart3,
+  CalendarCheck,
+  GraduationCap,
+  FileText,
   User,
+  Users,
   RefreshCw,
   Menu,
   X,
@@ -23,7 +25,11 @@ import {
   HelpCircle,
   LogOut,
   Bell,
-  BellRing
+  BellRing,
+  Award,
+  TrendingUp,
+  Clock,
+  Shield
 } from 'lucide-react';
 
 interface MobileNavigationProps {
@@ -69,7 +75,7 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
         const target = event.target as HTMLElement;
         const sidebar = document.querySelector('[data-sidebar="true"]');
         const toggleButton = document.querySelector('[data-toggle-button="true"]');
-        
+
         // Si el clic no es en el sidebar ni en el botón toggle, cerrar la barra
         if (sidebar && !sidebar.contains(target) && toggleButton && !toggleButton.contains(target)) {
           setIsHidden(true);
@@ -147,6 +153,7 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
         { key: 'home', label: 'Inicio', icon: Home },
         { key: 'search', label: 'Buscar Tutores', icon: Search },
         { key: 'requests', label: 'Mis Solicitudes', icon: Calendar },
+        { key: 'survey-analytics', label: 'Estadísticas', icon: BarChart3 },
         { key: 'chat', label: 'Mensajes', icon: MessageCircle },
       ]
     },
@@ -154,35 +161,47 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
       title: "INTELIGENCIA ARTIFICIAL",
       items: [
         { key: 'smart-matching', label: 'Smart Matching', icon: Brain },
-        { key: 'academic-predictor', label: 'Predictor Académico', icon: BarChart3 },
+        { key: 'academic-predictor', label: 'Predictor Académico', icon: TrendingUp },
         { key: 'study-planner', label: 'Planificador IA', icon: CalendarCheck },
       ]
     },
     {
       title: "ACADÉMICO",
       items: [
+        { key: 'subject-groups', label: 'Mis Grupos', icon: Users },
         { key: 'academic', label: 'Gestión Semestre', icon: GraduationCap },
+        { key: 'schedule', label: 'Horarios', icon: Clock },
         { key: 'docs', label: 'Documentos', icon: FileText },
+        { key: 'forum', label: 'Foro', icon: MessageSquare },
       ]
     },
     {
       title: "Cuenta",
       items: [
         { key: 'profile', label: 'Mi Perfil', icon: User },
-        { key: 'payments', label: 'Pagos', icon: CreditCard },
+        { key: 'wallet', label: 'Mi Billetera', icon: Award },
         { key: 'support', label: 'Soporte', icon: HelpCircle },
       ]
     }
   ];
 
+  if (user?.isAdmin) {
+    navigationSections.unshift({
+      title: "MAESTRO",
+      items: [
+        { key: 'admin', label: 'Panel Maestro', icon: Shield },
+      ]
+    });
+  }
+
   // Mostrar en todas las pantallas, pero con comportamiento diferente
   // En desktop: sidebar fijo, en móvil: overlay
 
   // Debug: Log para verificar que se está renderizando
-  console.log('MobileNavigation render:', { 
-    isVisible, 
-    isMobile: platform.isMobile, 
-    platform: platform.platform 
+  console.log('MobileNavigation render:', {
+    isVisible,
+    isMobile: platform.isMobile,
+    platform: platform.platform
   });
 
   // Debug: Log para verificar estados
@@ -198,8 +217,8 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
 
   return (
     <>
-              {/* Barra superior fija con botón del menú y título */}
-              <div className="fixed top-0 left-0 right-0 z-[1001] bg-white border-b border-gray-200 shadow-sm w-full max-w-full overflow-x-hidden nav-responsive">
+      {/* Barra superior fija con botón del menú y título */}
+      <div className="fixed top-0 left-0 right-0 z-[1001] bg-white border-b border-gray-200 shadow-sm w-full max-w-full overflow-x-hidden nav-responsive">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Botón del menú y título */}
           <div className="flex items-center gap-3">
@@ -221,13 +240,13 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
                 <X className="size-5" />
               )}
             </button>
-            
+
             {/* Título de la página activa */}
             <h1 className="text-lg font-semibold text-gray-800">
               {getPageTitle()}
             </h1>
           </div>
-          
+
           {/* Espacio para elementos adicionales del header si es necesario */}
           <div className="flex items-center gap-2">
             {/* Botón de notificaciones */}
@@ -252,63 +271,61 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
       </div>
 
 
-              {/* Panel de navegación vertical - Lado izquierdo - SOLO se renderiza si NO está oculta */}
-              {!isHidden && (
-                <nav
-                  data-sidebar="true"
-                  className="fixed left-0 w-72 bg-white shadow-2xl border-r border-gray-200 z-[1000] flex flex-col overflow-x-hidden"
-                  style={{
-                    display: 'flex',
-                    backgroundColor: 'white',
-                    top: '64px', // 4rem = 64px
-                    height: 'calc(100vh - 64px)',
-                    position: 'fixed',
-                    left: '0px',
-                    width: '288px', // w-72 = 288px
-                    maxWidth: '100vw'
-                  }}
-                >
-        {/* Header de la navegación - Simplificado */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="text-center text-gray-600 text-sm font-medium">
-            TutorApp
+      {/* Panel de navegación vertical - Lado izquierdo - SOLO se renderiza si NO está oculta */}
+      {!isHidden && (
+        <nav
+          data-sidebar="true"
+          className="fixed left-0 w-72 bg-white shadow-2xl border-r border-gray-200 z-[1000] flex flex-col overflow-x-hidden"
+          style={{
+            display: 'flex',
+            backgroundColor: 'white',
+            top: '64px', // 4rem = 64px
+            height: 'calc(100vh - 64px)',
+            position: 'fixed',
+            left: '0px',
+            width: '288px', // w-72 = 288px
+            maxWidth: '100vw'
+          }}
+        >
+          {/* Header de la navegación - Simplificado */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="text-center text-gray-600 text-sm font-medium">
+              TutorApp
+            </div>
           </div>
-        </div>
 
-        {/* Modo actual */}
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
-          <div className="text-center text-gray-700 text-sm font-medium mb-3">Modo actual</div>
-          <div className="flex items-center justify-center gap-3">
-            {/* Botón Estudiante */}
-            <button
-              onClick={() => handleModeSwitch(false)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                user?.currentMode === 'student' 
-                  ? 'bg-blue-500 text-white shadow-md' 
+          {/* Modo actual */}
+          <div className="p-4 bg-gray-50 border-b border-gray-200">
+            <div className="text-center text-gray-700 text-sm font-medium mb-3">Modo actual</div>
+            <div className="flex items-center justify-center gap-3">
+              {/* Botón Estudiante */}
+              <button
+                onClick={() => handleModeSwitch(false)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${user?.currentMode === 'student'
+                  ? 'bg-blue-500 text-white shadow-md'
                   : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <GraduationCap className="size-4" />
-              <span>Estudiante</span>
-            </button>
-            
-            {/* Botón Tutor */}
-            <button
-              onClick={() => handleModeSwitch(true)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
-                user?.currentMode === 'tutor' 
-                  ? 'bg-blue-500 text-white shadow-md' 
+                  }`}
+              >
+                <GraduationCap className="size-4" />
+                <span>Estudiante</span>
+              </button>
+
+              {/* Botón Tutor */}
+              <button
+                onClick={() => handleModeSwitch(true)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${user?.currentMode === 'tutor'
+                  ? 'bg-blue-500 text-white shadow-md'
                   : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-              }`}
-            >
-              <User className="size-4" />
-              <span>Tutor</span>
-            </button>
+                  }`}
+              >
+                <User className="size-4" />
+                <span>Tutor</span>
+              </button>
+            </div>
           </div>
-        </div>
 
-        {/* Contenido scrolleable */}
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
+          {/* Contenido scrolleable */}
+          <div className="flex-1 overflow-y-auto scrollbar-hide">
             {/* Secciones de navegación */}
             <div className="py-2 flex flex-col w-full">
               {navigationSections.map((section, sectionIndex) => (
@@ -320,7 +337,7 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
                     {section.items.map((item) => {
                       const Icon = item.icon;
                       const isActive = currentPage === item.key;
-                      
+
                       return (
                         <button
                           key={item.key}
@@ -328,8 +345,8 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
                           className={`
                             w-full flex items-center px-4 py-3 mx-2 rounded-lg
                             transition-all duration-200
-                            ${isActive 
-                              ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-500' 
+                            ${isActive
+                              ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-500'
                               : 'hover:bg-gray-50 text-gray-700 hover:text-gray-900'
                             }
                             justify-start
@@ -350,25 +367,25 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
             </div>
           </div>
 
-        {/* Footer con información del usuario y logout */}
-        <div className="border-t border-gray-200 p-4">
-          <div className="flex items-center mb-3">
-            <div className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-medium">
-              {user?.name?.[0]?.toUpperCase() || 'C'}
+          {/* Footer con información del usuario y logout */}
+          <div className="border-t border-gray-200 p-4">
+            <div className="flex items-center mb-3">
+              <div className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center font-medium">
+                {user?.name?.[0]?.toUpperCase() || 'C'}
+              </div>
+              <div className="ml-3">
+                <div className="text-gray-900 text-sm font-medium">{user?.name || 'carlos'}</div>
+                <div className="text-gray-500 text-xs">{user?.email || '24c.andres@gmail.com'}</div>
+              </div>
             </div>
-            <div className="ml-3">
-              <div className="text-gray-900 text-sm font-medium">{user?.name || 'carlos'}</div>
-              <div className="text-gray-500 text-xs">{user?.email || '24c.andres@gmail.com'}</div>
-            </div>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center text-red-600 hover:bg-red-50 p-2 rounded-md transition-colors"
+            >
+              <LogOut className="size-4 mr-2" />
+              <span className="font-medium">Cerrar Sesión</span>
+            </button>
           </div>
-          <button 
-            onClick={handleLogout}
-            className="w-full flex items-center text-red-600 hover:bg-red-50 p-2 rounded-md transition-colors"
-          >
-            <LogOut className="size-4 mr-2" />
-            <span className="font-medium">Cerrar Sesión</span>
-          </button>
-        </div>
         </nav>
       )}
 
@@ -391,7 +408,7 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
                 <X className="size-4" />
               </button>
             </div>
-            
+
             <div className="p-4 space-y-3 max-h-96 overflow-y-auto">
               <div className="text-center text-gray-500 py-8">
                 <Bell className="size-12 mx-auto mb-4 text-gray-300" />
@@ -409,10 +426,10 @@ export function MobileNavigation({ currentPage = 'home', onNavigate, onSidebarSt
 // Hook para calcular el espacio necesario para la navegación lateral
 export function useSidebarNavHeight() {
   const platform = usePlatform();
-  
+
   // Altura aproximada de la navegación
   const navHeight = platform.isMobile ? 140 : 0;
-  
+
   return {
     navHeight,
     paddingBottom: platform.isMobile ? `${navHeight}px` : '0px',

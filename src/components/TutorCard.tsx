@@ -15,11 +15,11 @@ interface TutorCardProps {
   showRequestButton?: boolean;
 }
 
-export function TutorCard({ 
-  tutor, 
-  onViewProfile, 
+export function TutorCard({
+  tutor,
+  onViewProfile,
   onRequestTutoring,
-  showRequestButton = true 
+  showRequestButton = true
 }: TutorCardProps) {
   return (
     <Card className="hover:shadow-md transition-shadow w-full max-w-full overflow-hidden tutor-card-responsive">
@@ -44,13 +44,12 @@ export function TutorCard({
                   <span className="text-sm text-gray-500">({tutor.totalReviews})</span>
                 </div>
               </div>
-              
+
               {/* Availability Status */}
               <div className="flex items-center gap-1 shrink-0">
-                <div 
-                  className={`size-2 rounded-full ${
-                    tutor.availability ? 'bg-green-500' : 'bg-gray-400'
-                  }`} 
+                <div
+                  className={`size-2 rounded-full ${tutor.availability ? 'bg-green-500' : 'bg-gray-400'
+                    }`}
                 />
                 <span className="text-xs text-gray-600 hidden sm:inline">
                   {tutor.availability ? 'Disponible' : 'Ocupado'}
@@ -87,15 +86,24 @@ export function TutorCard({
 
             {/* Rate and Actions */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 w-full tutor-actions">
-              <div className="flex items-center gap-1">
-                <DollarSign className="size-4 text-gray-400" />
-                <span className="font-medium">{formatPriceCOP(tutor.hourlyRate)}</span>
-                <span className="text-sm text-gray-500">/hora</span>
+              <div className="flex flex-col items-start gap-1">
+                <div className="flex items-center gap-1 text-blue-600">
+                  <Award className="size-4 fill-blue-100" />
+                  <span className="font-bold">{tutor.hourlyPoints || 5} PM</span>
+                  <span className="text-xs text-gray-500 font-normal">/hora</span>
+                </div>
+                {tutor.rank && (
+                  <div className="flex items-center gap-1">
+                    <Badge variant="outline" className="text-[10px] h-5 border-blue-200 bg-blue-50 text-blue-700">
+                      {tutor.rank}
+                    </Badge>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2 w-full sm:w-auto action-buttons">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => onViewProfile?.(tutor)}
                   className="flex-1 sm:flex-none action-button"
@@ -103,7 +111,7 @@ export function TutorCard({
                   Ver perfil
                 </Button>
                 {showRequestButton && tutor.availability && (
-                  <Button 
+                  <Button
                     size="sm"
                     onClick={() => onRequestTutoring?.(tutor)}
                     className="flex-1 sm:flex-none action-button"

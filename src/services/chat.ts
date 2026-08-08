@@ -1,8 +1,10 @@
 // Servicio de chat en tiempo real con Firebase
-import { ref, push, get, onValue, off, query, orderByChild, limitToLast, update, equalTo } from 'firebase/database';
+import { ref, push, get, onValue, off, query, orderByChild, limitToLast, update, equalTo, set } from 'firebase/database';
 import { database } from '../firebase';
 import { ChatMessage, ChatRoom } from '../types';
 import { notificationsService } from './notifications';
+import { db } from '../firebase'; // Firestore for Knowledge Base
+import { collection, addDoc } from 'firebase/firestore';
 
 class ChatService {
   // Crear o obtener sala de chat entre dos usuarios
@@ -11,33 +13,33 @@ class ChatService {
       // Crear ID de sala consistente (siempre el mismo orden)
       const participants = [user1Id, user2Id].sort();
       const roomId = `${participants[0]}_${participants[1]}`;
-      
+
       const roomRef = ref(database, `chatRooms/${roomId}`);
       const snapshot = await get(roomRef);
-      
+
       if (!snapshot.exists()) {
         // Verificar si existen otras salas entre estos usuarios (limpieza de duplicados)
         await this.cleanupDuplicateRooms(user1Id, user2Id);
-        
+
         // Crear nueva sala de chat
         const newRoom: Omit<ChatRoom, 'id'> = {
           participants,
           updatedAt: new Date(),
           requestId
         };
-        
+
         const roomData = {
           ...newRoom,
           updatedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           lastMessage: null
         };
-        
+
         await update(roomRef, roomData);
         console.log(`✅ Sala de chat creada: ${roomId}`);
       } else {
         console.log(`✅ Sala de chat existente encontrada: ${roomId}`);
-        
+
         // Actualizar requestId si se proporciona y no existe
         const existingRoom = snapshot.val();
         if (requestId && !existingRoom.requestId) {
@@ -48,7 +50,7 @@ class ChatService {
           console.log(`✅ RequestId actualizado para sala: ${roomId}`);
         }
       }
-      
+
       return roomId;
     } catch (error) {
       console.error('Error creating chat room:', error);
@@ -61,26 +63,26 @@ class ChatService {
     try {
       const allRoomsRef = ref(database, 'chatRooms');
       const snapshot = await get(allRoomsRef);
-      
+
       if (!snapshot.exists()) return;
-      
+
       const allRooms = snapshot.val();
-      const duplicateRooms = [];
-      
+      const duplicateRooms: string[] = [];
+
       // Buscar salas que involucren a ambos usuarios
       Object.keys(allRooms).forEach(roomId => {
         const room = allRooms[roomId];
-        if (room.participants && 
-            room.participants.includes(user1Id) && 
-            room.participants.includes(user2Id)) {
+        if (room.participants &&
+          room.participants.includes(user1Id) &&
+          room.participants.includes(user2Id)) {
           duplicateRooms.push(roomId);
         }
       });
-      
+
       // Si hay más de una sala, mantener solo la más reciente
       if (duplicateRooms.length > 1) {
         console.log(`⚠️ Se encontraron ${duplicateRooms.length} salas duplicadas, limpiando...`);
-        
+
         // Ordenar por fecha de actualización (más reciente primero)
         const sortedRooms = duplicateRooms.sort((a, b) => {
           const roomA = allRooms[a];
@@ -89,16 +91,16 @@ class ChatService {
           const dateB = new Date(roomB.updatedAt || roomB.createdAt);
           return dateB.getTime() - dateA.getTime();
         });
-        
+
         // Mantener la primera (más reciente) y eliminar las demás
         const roomsToDelete = sortedRooms.slice(1);
-        
+
         for (const roomId of roomsToDelete) {
           const roomRef = ref(database, `chatRooms/${roomId}`);
           await set(roomRef, null); // Eliminar la sala
           console.log(`🗑️ Sala duplicada eliminada: ${roomId}`);
         }
-        
+
         console.log(`✅ Limpieza completada: ${roomsToDelete.length} salas duplicadas eliminadas`);
       }
     } catch (error) {
@@ -109,16 +111,16 @@ class ChatService {
 
   // Enviar mensaje
   async sendMessage(
-    roomId: string, 
-    senderId: string, 
-    receiverId: string, 
+    roomId: string,
+    senderId: string,
+    receiverId: string,
     content: string,
     requestId?: string
   ): Promise<ChatMessage> {
     try {
       const messagesRef = ref(database, `messages/${roomId}`);
       const messageRef = push(messagesRef);
-      
+
       const newMessage: ChatMessage = {
         id: messageRef.key!,
         senderId,
@@ -151,10 +153,10 @@ class ChatService {
           message: content.length > 50 ? `${content.substring(0, 50)}...` : content,
           type: 'message',
           read: false,
-          data: { 
+          data: {
             senderId: senderId,
             roomId: roomId,
-            requestId: requestId 
+            requestId: requestId
           }
         });
       } catch (notificationError) {
@@ -174,9 +176,9 @@ class ChatService {
     try {
       const messagesRef = ref(database, `messages/${roomId}`);
       const messagesQuery = query(messagesRef, orderByChild('timestamp'), limitToLast(50));
-      
+
       const snapshot = await get(messagesQuery);
-      
+
       if (!snapshot.exists()) {
         return [];
       }
@@ -211,7 +213,7 @@ class ChatService {
             timestamp: new Date(messages[key].timestamp),
           }))
           .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-        
+
         callback(messagesList);
       } else {
         callback([]);
@@ -232,7 +234,7 @@ class ChatService {
       console.log('🔧 Obteniendo salas de chat para usuario:', userId);
       const roomsRef = ref(database, 'chatRooms');
       const snapshot = await get(roomsRef);
-      
+
       if (!snapshot.exists()) {
         console.log('ℹ️ No hay salas de chat en la base de datos');
         return [];
@@ -258,7 +260,7 @@ class ChatService {
       });
 
       console.log(`📚 ${userRooms.length} salas de chat encontradas para el usuario`);
-      
+
       // Ordenar por última actualización
       const sortedRooms = userRooms.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
       return sortedRooms;
@@ -273,13 +275,13 @@ class ChatService {
     try {
       const messagesRef = ref(database, `messages/${roomId}`);
       const unreadQuery = query(messagesRef, orderByChild('receiverId'), equalTo(userId));
-      
+
       const snapshot = await get(unreadQuery);
-      
+
       if (snapshot.exists()) {
         const messages = snapshot.val();
         const updates: Record<string, any> = {};
-        
+
         Object.keys(messages).forEach(messageId => {
           const message = messages[messageId];
           if (!message.read && message.receiverId === userId) {
@@ -305,7 +307,7 @@ class ChatService {
       for (const room of rooms) {
         const messagesRef = ref(database, `messages/${room.id}`);
         const unreadQuery = query(messagesRef, orderByChild('receiverId'), equalTo(userId));
-        
+
         const snapshot = await get(unreadQuery);
         if (snapshot.exists()) {
           const messages = snapshot.val();
@@ -328,7 +330,7 @@ class ChatService {
   async createDemoMessages(studentId: string, tutorId: string, requestId: string): Promise<void> {
     try {
       const roomId = await this.getOrCreateChatRoom(studentId, tutorId, requestId);
-      
+
       // Solo crear mensajes si la sala no tiene mensajes
       const messages = await this.getMessages(roomId);
       if (messages.length === 0) {
@@ -358,6 +360,29 @@ class ChatService {
       }
     } catch (error) {
       console.error('Error creating demo messages:', error);
+    }
+  }
+  // Promover mensaje a FAQ (Collaborative Core)
+  async promoteToFAQ(message: ChatMessage, tags: string[], promotedBy: string): Promise<boolean> {
+    try {
+      // Guardar en Firestore (Repositorio de Conocimiento Persistente)
+      await addDoc(collection(db, 'knowledge_base'), {
+        question: message.content,
+        answer: null, // To be filled by community
+        originalMessageId: message.id,
+        originalSenderId: message.senderId,
+        promotedBy: promotedBy,
+        tags: tags,
+        votes: 0,
+        createdAt: new Date(),
+        status: 'pending_answer' // pending_answer, answered
+      });
+
+      console.log(`Knowledge Base: Message ${message.id} promoted to FAQ`);
+      return true;
+    } catch (error) {
+      console.error('Error promoting to FAQ:', error);
+      return false;
     }
   }
 }

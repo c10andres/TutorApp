@@ -9,7 +9,9 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { formatPriceCOP, formatDate } from '../utils/formatters';
-import { 
+import { database } from '../firebase';
+import { ref, get, update } from 'firebase/database';
+import {
   Shield,
   Users,
   Settings,
@@ -55,17 +57,19 @@ interface AdminStats {
   systemHealth: 'excellent' | 'good' | 'warning' | 'critical';
 }
 
-interface User {
+interface AdminUser {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'tutor' | 'student';
+  role: string;
   status: 'active' | 'inactive' | 'banned';
   createdAt: Date;
   lastLogin: Date;
   totalSessions: number;
   rating: number;
   reports: number;
+  reputationPoints: number;
+  udCoins: number;
 }
 
 interface Report {
@@ -83,7 +87,7 @@ interface Report {
 export function AdminPanel({ className }: AdminPanelProps) {
   const { user } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -96,95 +100,83 @@ export function AdminPanel({ className }: AdminPanelProps) {
   }, []);
 
   const loadAdminData = async () => {
+    if (!user?.isAdmin) {
+      setError('Acceso denegado. Solo el administrador maestro puede ver este panel.');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
 
-      // Simular carga de datos de administración
+      // Fetch real users from Firebase
+      const usersRef = ref(database, 'users');
+      const snapshot = await get(usersRef);
+      const realUsers: AdminUser[] = [];
+      
+      let totalTutors = 0;
+      let totalStudents = 0;
+
+      if (snapshot.exists()) {
+        const usersData = snapshot.val();
+        Object.keys(usersData).forEach((key) => {
+          const u = usersData[key];
+          if (u.currentMode === 'tutor') totalTutors++;
+          if (u.currentMode === 'student' && !u.isAdmin) totalStudents++;
+          
+          realUsers.push({
+            id: key,
+            name: u.name || 'Sin nombre',
+            email: u.email || 'Sin correo',
+            role: u.isAdmin ? 'admin' : (u.currentMode || 'student'),
+            status: u.status || 'active',
+            createdAt: new Date(u.createdAt || Date.now()),
+            lastLogin: new Date(u.updatedAt || Date.now()),
+            totalSessions: u.totalSessions || 0,
+            rating: u.rating || 0,
+            reports: u.reports || 0,
+            reputationPoints: u.reputationPoints || 0,
+            udCoins: u.udCoins || 0
+          });
+        });
+      }
+
+      setUsers(realUsers);
+
       const mockStats: AdminStats = {
-        totalUsers: 1247,
-        activeUsers: 892,
-        totalTutors: 89,
-        totalStudents: 1158,
+        totalUsers: realUsers.length,
+        activeUsers: realUsers.length,
+        totalTutors,
+        totalStudents,
         totalSessions: 3456,
         totalRevenue: 125000000,
         averageRating: 4.7,
         pendingReports: 12,
         systemHealth: 'good'
       };
-
-      const mockUsers: User[] = [
-        {
-          id: '1',
-          name: 'Dr. María González',
-          email: 'maria@example.com',
-          role: 'tutor',
-          status: 'active',
-          createdAt: new Date('2024-01-15'),
-          lastLogin: new Date(),
-          totalSessions: 156,
-          rating: 4.9,
-          reports: 0
-        },
-        {
-          id: '2',
-          name: 'Sofia López',
-          email: 'sofia@example.com',
-          role: 'student',
-          status: 'active',
-          createdAt: new Date('2024-02-20'),
-          lastLogin: new Date(Date.now() - 86400000),
-          totalSessions: 45,
-          rating: 4.8,
-          reports: 0
-        },
-        {
-          id: '3',
-          name: 'Carlos Ruiz',
-          email: 'carlos@example.com',
-          role: 'tutor',
-          status: 'banned',
-          createdAt: new Date('2024-01-10'),
-          lastLogin: new Date(Date.now() - 7 * 86400000),
-          totalSessions: 23,
-          rating: 2.1,
-          reports: 3
-        }
-      ];
-
-      const mockReports: Report[] = [
-        {
-          id: '1',
-          type: 'user',
-          reporterId: 'user-1',
-          reportedUserId: 'user-3',
-          reason: 'Comportamiento inapropiado',
-          description: 'El tutor ha mostrado comportamiento inapropiado durante las sesiones',
-          status: 'pending',
-          createdAt: new Date(),
-          priority: 'high'
-        },
-        {
-          id: '2',
-          type: 'payment',
-          reporterId: 'user-2',
-          reportedUserId: 'user-4',
-          reason: 'Problema con el pago',
-          description: 'No se ha procesado el pago de la sesión',
-          status: 'reviewed',
-          createdAt: new Date(Date.now() - 86400000),
-          priority: 'medium'
-        }
-      ];
-
       setStats(mockStats);
-      setUsers(mockUsers);
-      setReports(mockReports);
+      setReports([]);
+
     } catch (err) {
       setError('Error cargando datos de administración');
       console.error('Error loading admin data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdatePoints = async (userId: string, currentPoints: number, type: 'reputationPoints' | 'udCoins', amount: number) => {
+    try {
+      const newPoints = Math.max(0, currentPoints + amount);
+      const userRef = ref(database, `users/${userId}`);
+      await update(userRef, {
+        [type]: newPoints,
+        updatedAt: new Date().toISOString()
+      });
+      loadAdminData(); // reload
+    } catch (e) {
+      console.error('Error actualizando puntos', e);
     }
   };
 
@@ -439,10 +431,13 @@ export function AdminPanel({ className }: AdminPanelProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="text-right text-sm text-gray-500">
-                        <p>{user.totalSessions} sesiones</p>
-                        <p>Último login: {formatDate(user.lastLogin)}</p>
+                        <p>PM: {user.reputationPoints} | UDC: {user.udCoins}</p>
+                        <div className="flex items-center justify-end gap-1 mt-1">
+                           <Button variant="outline" size="sm" onClick={() => handleUpdatePoints(user.id, user.reputationPoints, 'reputationPoints', 10)}>+10 PM</Button>
+                           <Button variant="outline" size="sm" onClick={() => handleUpdatePoints(user.id, user.udCoins, 'udCoins', 10)}>+10 UDC</Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 ml-4">
                         <Button variant="ghost" size="sm">
                           <Eye className="size-4" />
                         </Button>

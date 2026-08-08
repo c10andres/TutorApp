@@ -20,7 +20,6 @@ import {
   Calendar,
   Tag,
   AlertCircle,
-  TrendingUp,
   Clock,
   BookOpen,
   Scroll,
@@ -64,7 +63,6 @@ interface UniversityDocument {
   fileUrl: string;
   fileSize: number;
   tags: string[];
-  downloadCount: number;
   version: string;
   author: string;
   department: string;
@@ -85,59 +83,6 @@ const CATEGORY_ICONS: Record<DocumentCategory, any> = {
 };
 
 
-const MOCK_DOCUMENTS: UniversityDocument[] = [
-  {
-    id: 'doc-1',
-    title: 'Estatuto General de la Universidad',
-    description: 'Documento fundamental que establece la misión, visión y principios de la institución.',
-    category: 'Estatutos',
-    priority: 'alta',
-    status: 'vigente',
-    publishDate: new Date('2023-01-15'),
-    lastModified: new Date('2024-03-10'),
-    fileUrl: 'estatuto-general.pdf',
-    fileSize: 2048000,
-    tags: ['fundacional', 'normativa', 'institucional'],
-    downloadCount: 1250,
-    version: '2024.1',
-    author: 'Consejo Superior',
-    department: 'Rectoría'
-  },
-  {
-    id: 'doc-2',
-    title: 'Reglamento Estudiantil',
-    description: 'Normativas que rigen los derechos y deberes de los estudiantes universitarios.',
-    category: 'Reglamentos',
-    priority: 'alta',
-    status: 'vigente',
-    publishDate: new Date('2023-08-01'),
-    lastModified: new Date('2024-01-20'),
-    fileUrl: 'reglamento-estudiantil.pdf',
-    fileSize: 1536000,
-    tags: ['estudiantes', 'académico', 'disciplinario'],
-    downloadCount: 2180,
-    version: '2024.1',
-    author: 'Vicerrectoría Académica',
-    department: 'Registro Académico'
-  },
-  {
-    id: 'doc-3',
-    title: 'Resolución de Calendario Académico 2024',
-    description: 'Fechas importantes del año académico, períodos de matrícula y exámenes.',
-    category: 'Resoluciones',
-    priority: 'media',
-    status: 'vigente',
-    publishDate: new Date('2023-12-01'),
-    lastModified: new Date('2023-12-01'),
-    fileUrl: 'calendario-academico-2024.pdf',
-    fileSize: 512000,
-    tags: ['calendario', 'fechas', '2024'],
-    downloadCount: 3420,
-    version: '1.0',
-    author: 'Registro Académico',
-    department: 'Vicerrectoría Académica'
-  }
-];
 
 const DOCUMENT_CATEGORIES = [
   { id: 'Estatutos', name: 'Estatutos', count: 5, icon: Scroll },
@@ -232,7 +177,8 @@ export function UniversityDocsPage({ onNavigate }: UniversityDocsPageProps) {
         filtered.sort((a, b) => a.title.localeCompare(b.title));
         break;
       case 'downloads':
-        filtered.sort((a, b) => b.downloadCount - a.downloadCount);
+        // Ordenar por título si se selecciona descargas (opción removida)
+        filtered.sort((a, b) => a.title.localeCompare(b.title));
         break;
     }
 
@@ -249,47 +195,15 @@ export function UniversityDocsPage({ onNavigate }: UniversityDocsPageProps) {
 
   const handleDownload = async (document: UniversityDocument) => {
     try {
-      console.log('Descargando documento:', document.title);
+      console.log('📥 [handleDownload] Descargando documento:', document.title);
       
-      // Intentar descargar desde Firebase Storage
-      if ('storagePath' in document && document.storagePath) {
-        // Documento tiene storagePath, usar descarga real
-        await universityDocsService.downloadDocument(document as any);
-        
-        // Actualizar contador local
-        setDocuments(prev => prev.map(doc => 
-          doc.id === document.id 
-            ? { ...doc, downloadCount: doc.downloadCount + 1 }
-            : doc
-        ));
-      } else if (document.fileUrl) {
-        // Intentar descargar usando fileUrl
-        const link = window.document.createElement('a');
-        link.href = document.fileUrl;
-        link.download = document.title + '.pdf';
-        link.target = '_blank';
-        window.document.body.appendChild(link);
-        link.click();
-        window.document.body.removeChild(link);
-        
-        // Actualizar contador local
-        setDocuments(prev => prev.map(doc => 
-          doc.id === document.id 
-            ? { ...doc, downloadCount: doc.downloadCount + 1 }
-            : doc
-        ));
-      } else {
-        // Documento mock, simular descarga
-        console.log('📄 Documento de prueba - simulando descarga');
-        setDocuments(prev => prev.map(doc => 
-          doc.id === document.id 
-            ? { ...doc, downloadCount: doc.downloadCount + 1 }
-            : doc
-        ));
-      }
+      // Descargar el documento usando el servicio
+      await universityDocsService.downloadDocument(document as any);
+      
+      console.log('✅ [handleDownload] Documento descargado exitosamente');
     } catch (error) {
-      console.error('Error descargando documento:', error);
-      setError('Error al descargar el documento');
+      console.error('❌ [handleDownload] Error descargando documento:', error);
+      setError('Error al descargar el documento. Verifica la consola para más detalles.');
     }
   };
 
@@ -439,7 +353,6 @@ export function UniversityDocsPage({ onNavigate }: UniversityDocsPageProps) {
             <SelectItem value="newest">Más recientes</SelectItem>
             <SelectItem value="oldest">Más antiguos</SelectItem>
             <SelectItem value="title">Título (A-Z)</SelectItem>
-            <SelectItem value="downloads">Más descargados</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -460,20 +373,11 @@ export function UniversityDocsPage({ onNavigate }: UniversityDocsPageProps) {
         })}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-1">
         <Card>
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-blue-600">{documents.length}</div>
             <div className="text-sm text-gray-600">Total Documentos</div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4 text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {documents.reduce((sum, doc) => sum + doc.downloadCount, 0).toLocaleString()}
-            </div>
-            <div className="text-sm text-gray-600">Descargas Totales</div>
           </CardContent>
         </Card>
       </div>
@@ -535,7 +439,7 @@ export function UniversityDocsPage({ onNavigate }: UniversityDocsPageProps) {
                         ))}
                       </div>
                       
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm text-gray-600">
                         <div className="flex items-center gap-2">
                           <Calendar className="size-4" />
                           <span>{formatDateSpanish(document.publishDate)}</span>
@@ -543,10 +447,6 @@ export function UniversityDocsPage({ onNavigate }: UniversityDocsPageProps) {
                         <div className="flex items-center gap-2">
                           <FileText className="size-4" />
                           <span>{formatFileSize(document.fileSize)}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <TrendingUp className="size-4" />
-                          <span>{document.downloadCount} descargas</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Tag className="size-4" />

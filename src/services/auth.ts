@@ -1,13 +1,14 @@
 // Servicio de autenticación con Firebase
-import { 
+import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   sendPasswordResetEmail,
   onAuthStateChanged,
+  deleteUser,
   User as FirebaseUser
 } from 'firebase/auth';
-import { ref, set, get, update } from 'firebase/database';
+import { ref, set, get, update, remove } from 'firebase/database';
 import { auth, database } from '../firebase';
 import { User, UserMode } from '../types';
 
@@ -43,10 +44,10 @@ class AuthService {
   async signUp(email: string, password: string, name: string): Promise<User> {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      
+
       // Verificar si es un usuario maestro
       const isTestUser = this.isTestUserEmail(email);
-      
+
       // Configurar datos especiales para usuarios maestros
       let defaultMode: UserMode = 'student';
       let defaultSubjects: string[] = [];
@@ -56,7 +57,7 @@ class AuthService {
       let defaultAvailability = false;
       let defaultExperience = '';
       let defaultPreferredSubjects: string[] = [];
-      
+
       if (isTestUser) {
         if (email === 'CarlosAdminTutor@gmail.com') {
           defaultMode = 'tutor';
@@ -71,7 +72,7 @@ class AuthService {
           defaultPreferredSubjects = ['Matemáticas', 'Física', 'Programación'];
         }
       }
-      
+
       // Crear perfil de usuario en la base de datos
       const userData: User = {
         id: userCredential.user.uid,
@@ -87,6 +88,7 @@ class AuthService {
         experience: defaultExperience,
         createdAt: new Date(),
         isTestUser,
+        udCoins: 0,
       };
 
       await set(ref(database, `users/${userCredential.user.uid}`), {
@@ -121,11 +123,11 @@ class AuthService {
     }
 
     const userId = auth.currentUser.uid;
-    
+
     try {
       // Obtener datos actuales del usuario
       const currentUserData = await this.getUserData(userId);
-      
+
       // Preparar actualizaciones básicas
       const updates: any = {
         currentMode: mode,
@@ -160,10 +162,10 @@ class AuthService {
 
       // Obtener y retornar los datos actualizados
       const updatedUserData = await this.getUserData(userId);
-      
+
       // Notificar a los listeners del cambio
       this.notifyListeners(updatedUserData);
-      
+
       return updatedUserData;
     } catch (error: any) {
       console.error('Error in switchMode:', error);
@@ -175,7 +177,7 @@ class AuthService {
   async updateProfile(updates: Partial<User>): Promise<User> {
     console.log('🔍 AuthService: updateProfile iniciado');
     console.log('📊 AuthService: updates recibidos:', updates);
-    
+
     if (!auth.currentUser) {
       console.error('❌ AuthService: No hay usuario autenticado');
       throw new Error('No hay usuario autenticado');
@@ -183,7 +185,7 @@ class AuthService {
 
     const userId = auth.currentUser.uid;
     console.log('👤 AuthService: UserId:', userId);
-    
+
     const updatesWithDate = {
       ...updates,
       updatedAt: new Date().toISOString()
@@ -192,13 +194,40 @@ class AuthService {
     console.log('💾 AuthService: Guardando en Firebase:', updatesWithDate);
 
     await update(ref(database, `users/${userId}`), updatesWithDate);
-    
+
     console.log('✅ AuthService: Datos guardados en Firebase');
-    
+
     const userData = await this.getUserData(userId);
     console.log('👤 AuthService: Usuario actualizado obtenido:', userData);
-    
+
     return userData;
+  }
+
+  // Borrar cuenta (Hard Delete)
+  async deleteAccount(): Promise<void> {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('No hay usuario autenticado');
+    }
+
+    const userId = currentUser.uid;
+
+    try {
+      // 1. Borrar datos de la Base de Datos (Hard Delete)
+      // Nota: Si usas Firestore, sería deleteDoc(doc(db, "users", userId))
+      await remove(ref(database, `users/${userId}`));
+
+      // 2. Borrar usuario de Auth
+      await deleteUser(currentUser);
+
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      // Manejar el caso de que requiera re-autenticación
+      if (error.code === 'auth/requires-recent-login') {
+        throw new Error('Por seguridad, debes haber iniciado sesión recientemente para eliminar tu cuenta. Cierra sesión y vuelve a entrar.');
+      }
+      throw new Error(this.getErrorMessage(error.code));
+    }
   }
 
   // Obtener usuario actual
@@ -220,7 +249,7 @@ class AuthService {
   // Suscribirse a cambios de autenticación
   onAuthStateChanged(callback: (user: User | null) => void): () => void {
     this.authListeners.push(callback);
-    
+
     return () => {
       this.authListeners = this.authListeners.filter(listener => listener !== callback);
     };
@@ -230,18 +259,18 @@ class AuthService {
   private async getUserData(userId: string): Promise<User> {
     const userRef = ref(database, `users/${userId}`);
     const snapshot = await get(userRef);
-    
+
     if (!snapshot.exists()) {
       throw new Error('Usuario no encontrado');
     }
 
     const userData = snapshot.val();
-    
+
     // Verificar si es usuario maestro por email si no tiene el campo isTestUser
-    const isTestUser = userData.isTestUser !== undefined 
-      ? userData.isTestUser 
+    const isTestUser = userData.isTestUser !== undefined
+      ? userData.isTestUser
       : this.isTestUserEmail(userData.email);
-    
+
     return {
       ...userData,
       id: userId, // Asegurar que el id sea el uid de Firebase

@@ -7,7 +7,7 @@ import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
 import { NotificationsDropdown } from './NotificationsDropdown';
 import { FirebaseStatus } from './FirebaseStatus';
-import { Bell, MessageCircle, Home, Search, User, Calendar, RefreshCw, CreditCard, TestTube, GraduationCap, FileText, Brain, BarChart3, CalendarCheck, HelpCircle } from 'lucide-react';
+import { Bell, MessageCircle, MessageSquare, Home, Search, User, Calendar, RefreshCw, CreditCard, TestTube, GraduationCap, FileText, Brain, BarChart3, CalendarCheck, HelpCircle, Clock } from 'lucide-react';
 import { notificationsService } from '../services/notifications';
 
 interface LayoutProps {
@@ -43,7 +43,9 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
     { key: 'academic-predictor', label: 'Predictor IA', icon: BarChart3 },
     { key: 'study-planner', label: 'Planificador IA', icon: CalendarCheck },
     { key: 'academic', label: 'Académico', icon: GraduationCap },
+    { key: 'schedule', label: 'Horarios', icon: Clock },
     { key: 'docs', label: 'Documentos', icon: FileText },
+    { key: 'forum', label: 'Foro', icon: MessageSquare },
     { key: 'payments', label: 'Pagos', icon: CreditCard },
     { key: 'support', label: 'Soporte', icon: HelpCircle },
     { key: 'profile', label: 'Perfil', icon: User },
@@ -81,7 +83,7 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
             {/* User Menu */}
             <div className="flex items-center gap-4">
               <FirebaseStatus />
-              
+
               {/* Test notification button - temporary */}
               <Button
                 variant="ghost"
@@ -109,9 +111,9 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
               >
                 <TestTube className="size-4" />
               </Button>
-              
+
               <NotificationsDropdown onNavigate={onNavigate} />
-              
+
               <div className="flex items-center gap-2">
                 <Avatar className="size-8">
                   <AvatarImage src={user?.avatar} />
@@ -145,14 +147,13 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.key;
-            
+
             return (
               <button
                 key={item.key}
                 onClick={() => handleNavigation(item.key)}
-                className={`flex flex-col items-center py-2 px-3 ${
-                  isActive ? 'text-blue-600' : 'text-gray-500'
-                }`}
+                className={`flex flex-col items-center py-2 px-3 ${isActive ? 'text-blue-600' : 'text-gray-500'
+                  }`}
               >
                 <Icon className="size-5" />
                 <span className="text-xs mt-1">{item.label}</span>
@@ -190,16 +191,15 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.key;
-            
+
             return (
               <button
                 key={item.key}
                 onClick={() => handleNavigation(item.key)}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${
-                  isActive 
-                    ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition-colors ${isActive
+                    ? 'bg-blue-50 text-blue-600 border border-blue-200'
                     : 'text-gray-700 hover:bg-gray-50'
-                }`}
+                  }`}
               >
                 <Icon className="size-5" />
                 {item.label}
@@ -222,7 +222,7 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
             )}
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            {user?.currentMode === 'student' 
+            {user?.currentMode === 'student'
               ? 'Puedes solicitar tutorías y aprender'
               : 'Puedes ofrecer tutorías y enseñar'
             }
@@ -231,7 +231,8 @@ export function Layout({ children, currentPage = 'home', onNavigate }: LayoutPro
       </aside>
 
       {/* Main content offset for sidebar */}
-      <style dangerouslySetInnerHTML={{__html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         /* Ajuste para la barra lateral siempre visible */
         main {
           margin-left: 80px; /* Aumentado a 80px para evitar que el contenido quede oculto */
